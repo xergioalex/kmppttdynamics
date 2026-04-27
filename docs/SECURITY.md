@@ -26,7 +26,7 @@ Baseline security guidance for a Kotlin Multiplatform / Compose Multiplatform ap
 
 ```properties
 # ~/.gradle/gradle.properties (NOT in repo)
-KMPSTARTER_API_KEY=...
+KMPTODOAPP_API_KEY=...
 ```
 
 ```kotlin
@@ -36,7 +36,7 @@ android {
         buildConfigField(
             "String",
             "API_KEY",
-            "\"${providers.gradleProperty("KMPSTARTER_API_KEY").getOrElse("")}\""
+            "\"${providers.gradleProperty("KMPTODOAPP_API_KEY").getOrElse("")}\""
         )
     }
 }
@@ -45,7 +45,7 @@ android {
 **Option B — Environment variables (CI):**
 
 ```kotlin
-val apiKey = System.getenv("KMPSTARTER_API_KEY") ?: ""
+val apiKey = System.getenv("KMPTODOAPP_API_KEY") ?: ""
 ```
 
 **Option C — Compose Multiplatform resources (for non-secret config only):** put values in `composeResources/files/config.json` and read at runtime. Don't put real secrets there — they ship in the app bundle and can be extracted.

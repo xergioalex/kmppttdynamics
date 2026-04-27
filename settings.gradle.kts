@@ -2,7 +2,7 @@
 // resources generator derives its package from this name (lowercased), so
 // changing it requires updating every `import <name>.composeapp.generated.resources.*`.
 // See docs/FORK_CUSTOMIZATION.md.
-rootProject.name = "KMPStarter"
+rootProject.name = "KMPTodoApp"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

@@ -22,22 +22,22 @@ The user asks to "add a screen", "add a page", or "create a new feature view". T
 
 ### 1. Pick the package
 
-Single root: `com.xergioalex.kmpstarter`. Sub-package by feature, not layer:
+Single root: `com.xergioalex.kmptodoapp`. Sub-package by feature, not layer:
 
 ```
-commonMain/kotlin/com/xergioalex/kmpstarter/<feature>/
+commonMain/kotlin/com/xergioalex/kmptodoapp/<feature>/
     <Feature>Screen.kt        # @Composable, the screen
     <Feature>ViewModel.kt     # Optional but default
     <Feature>UiState.kt       # Optional, only if state is non-trivial
 ```
 
-For a `TaskList` screen → package `com.xergioalex.kmpstarter.tasks`.
+For a `TaskList` screen → package `com.xergioalex.kmptodoapp.tasks`.
 
 ### 2. Create the ViewModel (if needed)
 
 ```kotlin
-// commonMain/kotlin/com/xergioalex/kmpstarter/tasks/TaskListViewModel.kt
-package com.xergioalex.kmpstarter.tasks
+// commonMain/kotlin/com/xergioalex/kmptodoapp/tasks/TaskListViewModel.kt
+package com.xergioalex.kmptodoapp.tasks
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -64,8 +64,8 @@ If the ViewModel needs coroutines, the `kotlinx-coroutines-core` import comes th
 ### 3. Create the screen composable
 
 ```kotlin
-// commonMain/kotlin/com/xergioalex/kmpstarter/tasks/TaskListScreen.kt
-package com.xergioalex.kmpstarter.tasks
+// commonMain/kotlin/com/xergioalex/kmptodoapp/tasks/TaskListScreen.kt
+package com.xergioalex.kmptodoapp.tasks
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -81,8 +81,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.jetbrains.compose.resources.stringResource
-import kmpstarter.composeapp.generated.resources.Res
-import kmpstarter.composeapp.generated.resources.task_list_title
+import kmptodoapp.composeapp.generated.resources.Res
+import kmptodoapp.composeapp.generated.resources.task_list_title
 
 @Composable
 fun TaskListScreen(
@@ -126,7 +126,7 @@ If you have other locales (`values-es/`, etc.), add the translated entries to ea
 ### 5. Wire into `App()`
 
 ```kotlin
-// commonMain/kotlin/com/xergioalex/kmpstarter/App.kt
+// commonMain/kotlin/com/xergioalex/kmptodoapp/App.kt
 @Composable
 @Preview
 fun App() {
@@ -147,8 +147,8 @@ If the project already has a navigation system, add the screen to the route tabl
 ### 6. Add a test
 
 ```kotlin
-// commonTest/kotlin/com/xergioalex/kmpstarter/tasks/TaskListViewModelTest.kt
-package com.xergioalex.kmpstarter.tasks
+// commonTest/kotlin/com/xergioalex/kmptodoapp/tasks/TaskListViewModelTest.kt
+package com.xergioalex.kmptodoapp.tasks
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

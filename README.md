@@ -1,10 +1,10 @@
-# KMPStarter
+# KMPTodoApp
 
-A Kotlin Multiplatform / Compose Multiplatform **starter template** targeting Android, iOS, Desktop (JVM), Web (Wasm), and Web (JS) from a single shared `composeApp` module.
+A cross-platform Todo app built with Kotlin Multiplatform and Compose Multiplatform, targeting Android, iOS, Desktop (JVM), Web (Wasm), and Web (JS) from a single shared `composeApp` module.
 
-![KMPStarter running on the Android emulator from Android Studio](assets/android_studio_setup.png)
+![KMPTodoApp running on the Android emulator from Android Studio](assets/android_studio_setup.png)
 
-> **You're forking this?** Walk through [`docs/FORK_CUSTOMIZATION.md`](docs/FORK_CUSTOMIZATION.md) before writing product code. Every renameable identifier is also flagged in source with `// FORK-RENAME:` comments — `grep -rn 'FORK-RENAME'` to list them.
+Bootstrapped from [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpstarter). Renameable identifiers are flagged in source with `// FORK-RENAME:` comments — `grep -rn 'FORK-RENAME' .` to list them.
 
 ## Getting started (new to KMP?)
 
@@ -59,7 +59,7 @@ Full command reference: [`docs/DEVELOPMENT_COMMANDS.md`](docs/DEVELOPMENT_COMMAN
 
 ## License
 
-Released under the [MIT License](LICENSE) — free to use, modify, and distribute. If you fork this starter, update the copyright holder in `LICENSE` to your name/organization.
+Released under the [MIT License](LICENSE) — free to use, modify, and distribute.
 
 ## Credits
 

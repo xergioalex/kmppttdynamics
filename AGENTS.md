@@ -28,11 +28,11 @@
 
 ## Project Overview
 
-**KMPStarter** — Kotlin Multiplatform / Compose Multiplatform **starter template**. The shared `:composeApp` module produces apps for **Android, iOS (arm64 + simulator arm64), Desktop JVM, Web JS, and Web Wasm** from a single Compose UI written in `commonMain`.
+**KMPTodoApp** — a cross-platform Todo app built with Kotlin Multiplatform and Compose Multiplatform. The shared `:composeApp` module produces apps for **Android, iOS (arm64 + simulator arm64), Desktop JVM, Web JS, and Web Wasm** from a single Compose UI written in `commonMain`.
 
-The repository is intentionally minimal (Compose Multiplatform "Hello World" with a `Greeting` and a button) so it can be **forked and adapted to any product**. See [Fork Customization](docs/FORK_CUSTOMIZATION.md) for the rebrand checklist.
+Bootstrapped from [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpstarter); the current code is still the upstream "Hello World" (a `Greeting` and a button) and is being grown into a Todo app feature by feature.
 
-> **Forking this?** Every renameable identifier (project name, applicationId, namespace, mainClass, packageName, app display name, window title, web title, iOS framework name) is flagged in source with a `// FORK-RENAME:` comment. List them with `grep -rn 'FORK-RENAME' .` and walk [Fork Customization](docs/FORK_CUSTOMIZATION.md) before merging product code.
+> Renameable identifiers (project name, applicationId, namespace, mainClass, packageName, app display name, window title, web title, iOS framework name) are still flagged in source with `// FORK-RENAME:` comments from the upstream starter — `grep -rn 'FORK-RENAME' .` to list them. See [Fork Customization](docs/FORK_CUSTOMIZATION.md) if you fork this repo into another product.
 
 **Technology Stack** (full list with versions: [Technologies](docs/TECHNOLOGIES.md))
 
@@ -54,7 +54,7 @@ The repository is intentionally minimal (Compose Multiplatform "Hello World" wit
 ```
 composeApp/
 └── src/
-    ├── commonMain/kotlin/com/xergioalex/kmpstarter/
+    ├── commonMain/kotlin/com/xergioalex/kmptodoapp/
     │   ├── App.kt              # Shared root composable — all UI starts here
     │   ├── Platform.kt         # expect interface for platform info
     │   └── Greeting.kt         # Shared business logic example
@@ -144,7 +144,7 @@ Kotlin imports follow `kotlin.code.style=official` ordering — **alphabetical, 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import com.xergioalex.kmpstarter.Greeting
+import com.xergioalex.kmptodoapp.Greeting
 import org.jetbrains.compose.resources.painterResource
 ```
 
@@ -174,7 +174,7 @@ If you add **ktlint** or **detekt**, document the wired tasks in [Development Co
 Run a single test:
 
 ```bash
-./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmpstarter.ComposeAppCommonTest.example"
+./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmptodoapp.ComposeAppCommonTest.example"
 ```
 
 Tests live in `composeApp/src/commonTest/` (shared) and `composeApp/src/<platform>Test/` (platform-specific). Conventions: **[Testing Guide](docs/TESTING_GUIDE.md)**.
@@ -184,7 +184,7 @@ Tests live in `composeApp/src/commonTest/` (shared) and `composeApp/src/<platfor
 Use Compose Multiplatform resources — **not** per-platform asset folders — for any image/string/font that should be shared.
 
 - Drop assets in `composeApp/src/commonMain/composeResources/{drawable,values,font,files}/`
-- Access via the generated `kmpstarter.composeapp.generated.resources.Res` (e.g., `Res.drawable.compose_multiplatform`)
+- Access via the generated `kmptodoapp.composeapp.generated.resources.Res` (e.g., `Res.drawable.compose_multiplatform`)
 - Localized strings live under `values-<locale>/strings.xml` (e.g., `values-es/strings.xml`); read with `stringResource(Res.string.app_name)`
 
 **Never** hardcode user-visible strings in composables — wrap them in `stringResource(...)`. Full workflow: **[I18N Guide](docs/I18N_GUIDE.md)**.

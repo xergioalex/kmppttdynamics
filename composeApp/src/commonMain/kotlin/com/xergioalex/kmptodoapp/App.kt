@@ -1,4 +1,4 @@
-package com.xergioalex.kmpstarter
+package com.xergioalex.kmptodoapp
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
@@ -16,8 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import org.jetbrains.compose.resources.painterResource
 
-import kmpstarter.composeapp.generated.resources.Res
-import kmpstarter.composeapp.generated.resources.compose_multiplatform
+import kmptodoapp.composeapp.generated.resources.Res
+import kmptodoapp.composeapp.generated.resources.compose_multiplatform
 
 @Composable
 @Preview

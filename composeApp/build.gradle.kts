@@ -72,13 +72,13 @@ kotlin {
 android {
     // FORK-RENAME: namespace must match the Kotlin package; both change together when forking.
     // See docs/FORK_CUSTOMIZATION.md.
-    namespace = "com.xergioalex.kmpstarter"
+    namespace = "com.xergioalex.kmptodoapp"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
         // FORK-RENAME: applicationId is the Play Store identity. NEVER change after publishing.
         // Pick the final value before your first Play upload. See docs/FORK_CUSTOMIZATION.md.
-        applicationId = "com.xergioalex.kmpstarter"
+        applicationId = "com.xergioalex.kmptodoapp"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
@@ -108,12 +108,12 @@ compose.desktop {
     application {
         // FORK-RENAME: mainClass must match the Kotlin package of jvmMain/main.kt.
         // See docs/FORK_CUSTOMIZATION.md.
-        mainClass = "com.xergioalex.kmpstarter.MainKt"
+        mainClass = "com.xergioalex.kmptodoapp.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             // FORK-RENAME: packageName is the desktop installer identifier.
-            packageName = "com.xergioalex.kmpstarter"
+            packageName = "com.xergioalex.kmptodoapp"
             packageVersion = "1.0.0"
         }
     }

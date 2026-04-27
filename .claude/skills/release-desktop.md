@@ -65,7 +65,7 @@ Compose Desktop can sign automatically if you configure it:
 ```kotlin
 nativeDistributions {
     macOS {
-        bundleID = "com.xergioalex.kmpstarter"
+        bundleID = "com.xergioalex.kmptodoapp"
         signing {
             sign.set(true)
             identity.set("Developer ID Application: Your Name (TEAMID)")

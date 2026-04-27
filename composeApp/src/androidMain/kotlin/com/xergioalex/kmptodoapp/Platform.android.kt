@@ -1,4 +1,4 @@
-package com.xergioalex.kmpstarter
+package com.xergioalex.kmptodoapp
 
 import android.os.Build
 

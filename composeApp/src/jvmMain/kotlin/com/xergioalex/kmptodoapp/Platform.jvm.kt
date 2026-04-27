@@ -1,4 +1,4 @@
-package com.xergioalex.kmpstarter
+package com.xergioalex.kmptodoapp
 
 class JVMPlatform: Platform {
     override val name: String = "Java ${System.getProperty("java.version")}"

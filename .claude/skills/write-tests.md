@@ -40,13 +40,13 @@ Default: `kotlin.test` (already wired). For coroutines, add `kotlinx-coroutines-
 
 ### 3. Mirror the package
 
-`commonMain/kotlin/com/xergioalex/kmpstarter/tasks/Task.kt` →
-`commonTest/kotlin/com/xergioalex/kmpstarter/tasks/TaskTest.kt`
+`commonMain/kotlin/com/xergioalex/kmptodoapp/tasks/Task.kt` →
+`commonTest/kotlin/com/xergioalex/kmptodoapp/tasks/TaskTest.kt`
 
 ### 4. Write tests following the AAA pattern
 
 ```kotlin
-package com.xergioalex.kmpstarter.tasks
+package com.xergioalex.kmptodoapp.tasks
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -159,7 +159,7 @@ class FakeTaskApi(
 ### 8. Run
 
 ```bash
-./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmpstarter.tasks.TaskListViewModelTest"
+./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmptodoapp.tasks.TaskListViewModelTest"
 ```
 
 Or watch mode:

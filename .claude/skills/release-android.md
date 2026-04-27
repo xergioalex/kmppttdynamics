@@ -48,7 +48,7 @@ Create `composeApp/proguard-rules.pro`:
 
 ```proguard
 # Compose Multiplatform / Kotlin/Native generated classes
--keep class com.xergioalex.kmpstarter.** { *; }
+-keep class com.xergioalex.kmptodoapp.** { *; }
 -dontwarn org.jetbrains.compose.**
 
 # Add per-library rules from each library's docs as you adopt them:
@@ -60,10 +60,10 @@ Create `composeApp/proguard-rules.pro`:
 Store credentials outside the repo. Add to `~/.gradle/gradle.properties`:
 
 ```properties
-KMPSTARTER_KEYSTORE_FILE=/Users/you/keys/kmpstarter-release.keystore
-KMPSTARTER_KEYSTORE_PASSWORD=...
-KMPSTARTER_KEY_ALIAS=kmpstarter
-KMPSTARTER_KEY_PASSWORD=...
+KMPTODOAPP_KEYSTORE_FILE=/Users/you/keys/kmptodoapp-release.keystore
+KMPTODOAPP_KEYSTORE_PASSWORD=...
+KMPTODOAPP_KEY_ALIAS=kmptodoapp
+KMPTODOAPP_KEY_PASSWORD=...
 ```
 
 Wire signing in `composeApp/build.gradle.kts`:
@@ -72,10 +72,10 @@ Wire signing in `composeApp/build.gradle.kts`:
 android {
     signingConfigs {
         create("release") {
-            storeFile = file(providers.gradleProperty("KMPSTARTER_KEYSTORE_FILE").get())
-            storePassword = providers.gradleProperty("KMPSTARTER_KEYSTORE_PASSWORD").get()
-            keyAlias = providers.gradleProperty("KMPSTARTER_KEY_ALIAS").get()
-            keyPassword = providers.gradleProperty("KMPSTARTER_KEY_PASSWORD").get()
+            storeFile = file(providers.gradleProperty("KMPTODOAPP_KEYSTORE_FILE").get())
+            storePassword = providers.gradleProperty("KMPTODOAPP_KEYSTORE_PASSWORD").get()
+            keyAlias = providers.gradleProperty("KMPTODOAPP_KEY_ALIAS").get()
+            keyPassword = providers.gradleProperty("KMPTODOAPP_KEY_PASSWORD").get()
         }
     }
     buildTypes {
@@ -165,14 +165,14 @@ Suggested GitHub Actions skeleton (Linux runner):
     java-version: '17'
 - run: ./gradlew :composeApp:bundleRelease
   env:
-    KMPSTARTER_KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE_PATH }}
-    KMPSTARTER_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-    KMPSTARTER_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-    KMPSTARTER_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+    KMPTODOAPP_KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE_PATH }}
+    KMPTODOAPP_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+    KMPTODOAPP_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+    KMPTODOAPP_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 - uses: r0adkll/upload-google-play@v1
   with:
     serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-    packageName: com.xergioalex.kmpstarter
+    packageName: com.xergioalex.kmptodoapp
     releaseFiles: composeApp/build/outputs/bundle/release/composeApp-release.aab
     track: internal
 ```

@@ -1,4 +1,4 @@
-package com.xergioalex.kmpstarter
+package com.xergioalex.kmptodoapp
 
 class JsPlatform: Platform {
     override val name: String = "Web with Kotlin/JS"

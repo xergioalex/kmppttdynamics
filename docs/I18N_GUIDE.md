@@ -1,6 +1,6 @@
 # Internationalization (i18n)
 
-How to localize KMPStarter. The app uses **Compose Multiplatform resources** — the same API works on every target, no per-platform string handling needed.
+How to localize KMPTodoApp. The app uses **Compose Multiplatform resources** — the same API works on every target, no per-platform string handling needed.
 
 ## Where strings live
 
@@ -23,7 +23,7 @@ Locale qualifiers follow the standard [BCP-47](https://en.wikipedia.org/wiki/IET
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">KMPStarter</string>
+    <string name="app_name">KMPTodoApp</string>
     <string name="welcome_message">Hello, %1$s!</string>
     <string name="task_count">You have %1$d tasks</string>
 </resources>
@@ -34,7 +34,7 @@ Locale qualifiers follow the standard [BCP-47](https://en.wikipedia.org/wiki/IET
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">KMPStarter</string>
+    <string name="app_name">KMPTodoApp</string>
     <string name="welcome_message">¡Hola, %1$s!</string>
     <string name="task_count">Tienes %1$d tareas</string>
 </resources>
@@ -44,8 +44,8 @@ Locale qualifiers follow the standard [BCP-47](https://en.wikipedia.org/wiki/IET
 
 ```kotlin
 import org.jetbrains.compose.resources.stringResource
-import kmpstarter.composeapp.generated.resources.Res
-import kmpstarter.composeapp.generated.resources.welcome_message
+import kmptodoapp.composeapp.generated.resources.Res
+import kmptodoapp.composeapp.generated.resources.welcome_message
 
 @Composable
 fun WelcomeBanner(name: String) {
@@ -61,8 +61,8 @@ When you need a string in a `ViewModel` or repository:
 
 ```kotlin
 import org.jetbrains.compose.resources.getString
-import kmpstarter.composeapp.generated.resources.Res
-import kmpstarter.composeapp.generated.resources.welcome_message
+import kmptodoapp.composeapp.generated.resources.Res
+import kmptodoapp.composeapp.generated.resources.welcome_message
 
 class MyViewModel : ViewModel() {
     suspend fun greet(name: String): String =
@@ -87,8 +87,8 @@ Read:
 
 ```kotlin
 import org.jetbrains.compose.resources.pluralStringResource
-import kmpstarter.composeapp.generated.resources.Res
-import kmpstarter.composeapp.generated.resources.task_count
+import kmptodoapp.composeapp.generated.resources.Res
+import kmptodoapp.composeapp.generated.resources.task_count
 
 Text(pluralStringResource(Res.plurals.task_count, count, count))
 ```

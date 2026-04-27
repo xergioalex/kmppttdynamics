@@ -1,6 +1,6 @@
 # Architecture
 
-This document explains the **big picture** of KMPStarter so a new contributor (human or agent) can be productive quickly. For day-to-day commands see [Development Commands](DEVELOPMENT_COMMANDS.md). For language-specific rules see [Standards](STANDARDS.md).
+This document explains the **big picture** of KMPTodoApp so a new contributor (human or agent) can be productive quickly. For day-to-day commands see [Development Commands](DEVELOPMENT_COMMANDS.md). For language-specific rules see [Standards](STANDARDS.md).
 
 ## High-level model
 
@@ -33,7 +33,7 @@ Every platform mounts the **same** `App()` composable. Platform source sets only
 ## Project structure
 
 ```
-KMPStarter/
+KMPTodoApp/
 ├── AGENTS.md                          # Single source of truth for AI agents
 ├── CLAUDE.md → AGENTS.md              # Symlink (do not edit directly)
 ├── README.md                          # Human-facing intro
@@ -50,7 +50,7 @@ KMPStarter/
 │   ├── build.gradle.kts               # KMP target list, source-set deps, Android config
 │   └── src/
 │       ├── commonMain/
-│       │   ├── kotlin/com/xergioalex/kmpstarter/
+│       │   ├── kotlin/com/xergioalex/kmptodoapp/
 │       │   │   ├── App.kt             # @Composable App — all UI starts here
 │       │   │   ├── Greeting.kt        # Pure-Kotlin shared logic (uses getPlatform())
 │       │   │   └── Platform.kt        # interface Platform + expect fun getPlatform()
@@ -59,28 +59,28 @@ KMPStarter/
 │       ├── commonTest/kotlin/         # Shared kotlin.test tests
 │       │
 │       ├── androidMain/
-│       │   ├── kotlin/com/xergioalex/kmpstarter/
+│       │   ├── kotlin/com/xergioalex/kmptodoapp/
 │       │   │   ├── MainActivity.kt    # ComponentActivity → setContent { App() }
 │       │   │   └── Platform.android.kt   # actual fun getPlatform()
 │       │   ├── AndroidManifest.xml    # Single MainActivity, MAIN/LAUNCHER intent filter
 │       │   └── res/                   # Android-only resources (icons, strings)
 │       │
-│       ├── iosMain/kotlin/com/xergioalex/kmpstarter/
+│       ├── iosMain/kotlin/com/xergioalex/kmptodoapp/
 │       │   ├── MainViewController.kt  # fun MainViewController() = ComposeUIViewController { App() }
 │       │   └── Platform.ios.kt        # actual fun getPlatform()
 │       │
-│       ├── jvmMain/kotlin/com/xergioalex/kmpstarter/
+│       ├── jvmMain/kotlin/com/xergioalex/kmptodoapp/
 │       │   ├── main.kt                # application { Window { App() } }
 │       │   └── Platform.jvm.kt        # actual fun getPlatform()
 │       │
 │       ├── webMain/                   # SHARED web entry (used by both JS and Wasm)
-│       │   ├── kotlin/com/xergioalex/kmpstarter/main.kt   # ComposeViewport { App() }
+│       │   ├── kotlin/com/xergioalex/kmptodoapp/main.kt   # ComposeViewport { App() }
 │       │   └── resources/index.html   # Web shell (loads composeApp.js)
 │       │
-│       ├── jsMain/kotlin/com/xergioalex/kmpstarter/
+│       ├── jsMain/kotlin/com/xergioalex/kmptodoapp/
 │       │   └── Platform.js.kt         # actual fun getPlatform()
 │       │
-│       └── wasmJsMain/kotlin/com/xergioalex/kmpstarter/
+│       └── wasmJsMain/kotlin/com/xergioalex/kmptodoapp/
 │           └── Platform.wasmJs.kt     # actual fun getPlatform()
 │
 ├── iosApp/                            # Xcode project — consumes the ComposeApp framework
@@ -163,7 +163,7 @@ actual fun getPlatform(): Platform = IOSPlatform()
 
 ### Resources
 
-Compose Multiplatform compiles `composeApp/src/commonMain/composeResources/` into a generated `kmpstarter.composeapp.generated.resources.Res` object. Subfolder conventions:
+Compose Multiplatform compiles `composeApp/src/commonMain/composeResources/` into a generated `kmptodoapp.composeapp.generated.resources.Res` object. Subfolder conventions:
 
 - `drawable/` — vector and raster images, accessed via `Res.drawable.<name>`
 - `values/strings.xml` — base locale strings, accessed via `Res.string.<name>` (qualifiers like `values-es/` add localized variants)
@@ -199,7 +199,7 @@ struct ComposeView: UIViewControllerRepresentable {
 - Targets enabled: `androidTarget()`, `iosArm64()`, `iosSimulatorArm64()`, `jvm()`, `js { browser() }`, `wasmJs { browser() }` — all with executables
 - iOS framework name `ComposeApp`, `isStatic = true`
 - Android: `compileSdk 36`, `minSdk 24`, `targetSdk 36`, Java 11; release build `isMinifyEnabled = false` (flip on for production — see [Performance](PERFORMANCE.md))
-- Desktop: target formats `Dmg`, `Msi`, `Deb`; main class `com.xergioalex.kmpstarter.MainKt`
+- Desktop: target formats `Dmg`, `Msi`, `Deb`; main class `com.xergioalex.kmptodoapp.MainKt`
 
 `gradle.properties`:
 

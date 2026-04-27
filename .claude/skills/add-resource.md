@@ -67,8 +67,8 @@ If you can't translate, ask the user; don't paste the English value as a placeho
 
 ```kotlin
 import org.jetbrains.compose.resources.stringResource
-import kmpstarter.composeapp.generated.resources.Res
-import kmpstarter.composeapp.generated.resources.task_list_title
+import kmptodoapp.composeapp.generated.resources.Res
+import kmptodoapp.composeapp.generated.resources.task_list_title
 
 @Composable
 fun MyHeader() {
@@ -157,8 +157,8 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import org.jetbrains.compose.resources.Font
-import kmpstarter.composeapp.generated.resources.Res
-import kmpstarter.composeapp.generated.resources.inter_regular
+import kmptodoapp.composeapp.generated.resources.Res
+import kmptodoapp.composeapp.generated.resources.inter_regular
 
 val InterFamily = FontFamily(
     Font(Res.font.inter_regular, FontWeight.Normal),

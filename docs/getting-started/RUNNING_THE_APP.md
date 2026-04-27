@@ -1,6 +1,6 @@
 # Running the App
 
-How to run KMPStarter on every target. Each section explains what to do, why it works, and how to confirm the app actually launched.
+How to run KMPTodoApp on every target. Each section explains what to do, why it works, and how to confirm the app actually launched.
 
 If you haven't installed your tools yet, start with [Environment Setup](ENVIRONMENT_SETUP.md). For raw Gradle task references see [`../DEVELOPMENT_COMMANDS.md`](../DEVELOPMENT_COMMANDS.md). For per-platform internals see [`../PLATFORMS.md`](../PLATFORMS.md).
 
@@ -31,7 +31,7 @@ Or from the terminal — boot an emulator first, then:
 
 ```bash
 ./gradlew :composeApp:installDebug
-adb shell monkey -p com.xergioalex.kmpstarter -c android.intent.category.LAUNCHER 1
+adb shell monkey -p com.xergioalex.kmptodoapp -c android.intent.category.LAUNCHER 1
 ```
 
 ### What you should see
@@ -41,7 +41,7 @@ The starter screen with `Compose: Hello, Android 36!` (or whatever API level the
 ### Verify
 
 ```bash
-adb logcat | grep -i kmpstarter
+adb logcat | grep -i kmptodoapp
 ```
 
 Or just check the running window. If the build fails, see [Troubleshooting → Gradle / build issues](TROUBLESHOOTING.md#gradle-fails-with-what-went-wrong-26).
@@ -167,7 +167,7 @@ The fastest UI inner-loop. Compose Hot Reload lets you change a composable and s
 
 ### What you should see
 
-A native desktop window titled *KMPStarter* with the starter UI and `Compose: Hello, Java …`.
+A native desktop window titled *KMPTodoApp* with the starter UI and `Compose: Hello, Java …`.
 
 ### Iterate
 
@@ -185,7 +185,7 @@ Output lands in `composeApp/build/compose/binaries/` — `.dmg` on macOS, `.msi`
 
 ## 6. Web
 
-KMPStarter ships two web targets:
+KMPTodoApp ships two web targets:
 
 - **Wasm (preferred)** — faster, smaller, modern. Requires a recent browser (Chrome 119+, Firefox 120+, Safari 18.2+).
 - **JS (fallback)** — slower and larger, but works on older browsers.

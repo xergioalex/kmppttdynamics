@@ -5,7 +5,7 @@ description: Walk a fresh fork through package, applicationId, namespace, bundle
 
 # Skill: `/fork-rebrand`
 
-The user just forked KMPStarter and wants to make it their product. Walk through the rebrand checklist mechanically — no creative judgment.
+The user just forked KMPTodoApp and wants to make it their product. Walk through the rebrand checklist mechanically — no creative judgment.
 
 ## Defer to the dedicated doc
 
@@ -47,22 +47,22 @@ Follow the steps in [`docs/FORK_CUSTOMIZATION.md`](../../docs/FORK_CUSTOMIZATION
 
 ## Use the IDE refactor for package renames
 
-Renaming `com.xergioalex.kmpstarter` → `com.acme.tasks` across every source set is error-prone with `sed`. Prefer:
+Renaming `com.xergioalex.kmptodoapp` → `com.acme.tasks` across every source set is error-prone with `sed`. Prefer:
 
 1. Open the project in Android Studio / IntelliJ / Fleet
-2. Right-click the `kmpstarter` package node → Refactor → Rename → `tasks`
+2. Right-click the `kmptodoapp` package node → Refactor → Rename → `tasks`
 3. Apply for every source set (the IDE may handle them all in one pass)
 4. Repeat the parent-package rename: `com.xergioalex` → `com.acme`
 
 If the IDE isn't available, use a careful `sed` invocation:
 
 ```bash
-grep -rln "com.xergioalex.kmpstarter" composeApp/src \
-  | xargs sed -i '' 's/com\.xergioalex\.kmpstarter/com.acme.tasks/g'
+grep -rln "com.xergioalex.kmptodoapp" composeApp/src \
+  | xargs sed -i '' 's/com\.xergioalex\.kmptodoapp/com.acme.tasks/g'
 # Then move the directories:
-find composeApp/src -type d -name kmpstarter | while read d; do
+find composeApp/src -type d -name kmptodoapp | while read d; do
   parent=$(dirname "$d")
-  mv "$parent/xergioalex/kmpstarter" "$parent/../tasks"
+  mv "$parent/xergioalex/kmptodoapp" "$parent/../tasks"
   rmdir "$parent" 2>/dev/null
 done
 ```
@@ -83,7 +83,7 @@ compose.resources {
 Then update every `import` accordingly. Search:
 
 ```bash
-grep -rln "kmpstarter.composeapp.generated.resources" composeApp/src
+grep -rln "kmptodoapp.composeapp.generated.resources" composeApp/src
 ```
 
 ## Removing unused targets
@@ -123,10 +123,10 @@ After the rebrand:
 - [AGENTS.md](../../AGENTS.md) — Project Overview section
 - [docs/PLATFORMS.md](../../docs/PLATFORMS.md) — drop sections for removed targets
 - [docs/TECHNOLOGIES.md](../../docs/TECHNOLOGIES.md) — drop unused libraries
-- Search for `KMPStarter`, `kmpstarter`, `xergioalex` — replace any remaining references
+- Search for `KMPTodoApp`, `kmptodoapp`, `xergioalex` — replace any remaining references
 
 ```bash
-grep -rln "KMPStarter\|kmpstarter\|xergioalex" --include="*.md" --include="*.kts" --include="*.kt" --include="*.xml" --include="*.html"
+grep -rln "KMPTodoApp\|kmptodoapp\|xergioalex" --include="*.md" --include="*.kts" --include="*.kt" --include="*.xml" --include="*.html"
 ```
 
 ## Final commit
@@ -143,7 +143,7 @@ If git history is being reset:
 rm -rf .git
 git init
 git add .
-git commit -m "feat: bootstrap from KMPStarter starter as <new name>"
+git commit -m "feat: bootstrap from KMPTodoApp starter as <new name>"
 ```
 
 ## Don't

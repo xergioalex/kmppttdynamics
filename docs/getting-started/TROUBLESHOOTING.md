@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Real problems hit while setting KMPStarter up on macOS, with the exact fix for each. If you're hitting something not listed here, open an issue.
+Real problems hit while setting KMPTodoApp up on macOS, with the exact fix for each. If you're hitting something not listed here, open an issue.
 
 > Most setup pain comes from the iOS path (Xcode → Gradle → Java → Kotlin/Native). When in doubt, check Java first.
 
@@ -19,7 +19,7 @@ Real problems hit while setting KMPStarter up on macOS, with the exact fix for e
 3. Install the official plugin published by JetBrains.
 4. Restart Android Studio.
 
-The KMP template now appears under `New Project`. (KMPStarter is already a working KMP project, so you don't need this just to develop here — but the plugin also adds run configurations for iOS targets, which is useful.)
+The KMP template now appears under `New Project`. (KMPTodoApp is already a working KMP project, so you don't need this just to develop here — but the plugin also adds run configurations for iOS targets, which is useful.)
 
 ---
 
@@ -69,7 +69,7 @@ The operation couldn't be completed. Unable to locate a Java Runtime.
 
 …or a similar one-line "stacktrace" with just a JDK major version.
 
-**Cause**: Gradle/Kotlin doesn't recognize the Java version it's running on. Brew's default `temurin` cask installs the latest JDK (Java 26 at the time of writing), which is too new for the Gradle/Kotlin tooling KMPStarter uses.
+**Cause**: Gradle/Kotlin doesn't recognize the Java version it's running on. Brew's default `temurin` cask installs the latest JDK (Java 26 at the time of writing), which is too new for the Gradle/Kotlin tooling KMPTodoApp uses.
 
 **Fix**: Install **Java 21 (LTS)** and point the build at it.
 
@@ -201,7 +201,7 @@ rm -rf ~/.gradle/caches
 
 ## Gradle sync fails on first open
 
-**Symptom**: Android Studio opens KMPStarter and Gradle sync fails with dependency-resolution or plugin-not-found errors.
+**Symptom**: Android Studio opens KMPTodoApp and Gradle sync fails with dependency-resolution or plugin-not-found errors.
 
 **Common causes**:
 
@@ -221,7 +221,7 @@ rm -rf ~/.gradle/caches
 2. In `iosApp.xcodeproj` → **iosApp** target → **Signing & Capabilities**:
    - Check **Automatically manage signing**.
    - Pick your team from the dropdown.
-   - Make sure **Bundle Identifier** is unique (Apple's free signing requires globally unique IDs). If you're forking, change it from `com.xergioalex.kmpstarter` to your own — see [`../FORK_CUSTOMIZATION.md`](../FORK_CUSTOMIZATION.md).
+   - Make sure **Bundle Identifier** is unique (Apple's free signing requires globally unique IDs). If you're forking, change it from `com.xergioalex.kmptodoapp` to your own — see [`../FORK_CUSTOMIZATION.md`](../FORK_CUSTOMIZATION.md).
 3. Plug the iPhone in, unlock, and rebuild.
 
 ---

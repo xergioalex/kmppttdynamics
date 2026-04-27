@@ -50,7 +50,7 @@ Run the pre-commit checklist from `AGENTS.md`:
 
 ### Adding shared logic
 
-`composeApp/src/commonMain/kotlin/com/xergioalex/kmpstarter/<feature>/<File>.kt` — pure Kotlin, no platform deps. Add a test in the matching path under `commonTest/`.
+`composeApp/src/commonMain/kotlin/com/xergioalex/kmptodoapp/<feature>/<File>.kt` — pure Kotlin, no platform deps. Add a test in the matching path under `commonTest/`.
 
 ### Adding a screen
 

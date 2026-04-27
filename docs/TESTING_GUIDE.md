@@ -1,6 +1,6 @@
 # Testing Guide
 
-How to write and run tests in KMPStarter. The starter ships with `kotlin.test` only — that's enough for shared logic. Add UI testing libraries when you start needing them.
+How to write and run tests in KMPTodoApp. The starter ships with `kotlin.test` only — that's enough for shared logic. Add UI testing libraries when you start needing them.
 
 ## Where tests live
 
@@ -22,7 +22,7 @@ The starter currently has only `commonTest`. Add the others on demand — the so
 ./gradlew :composeApp:jvmTest                  # Fastest — recommended default
 ./gradlew :composeApp:testDebugUnitTest        # Android unit
 ./gradlew :composeApp:iosSimulatorArm64Test    # iOS simulator
-./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmpstarter.GreetingTest.greetsCurrentPlatform"
+./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmptodoapp.GreetingTest.greetsCurrentPlatform"
 ./gradlew :composeApp:jvmTest --continuous     # Watch mode
 ```
 
@@ -30,7 +30,7 @@ Reports land at `composeApp/build/reports/tests/<task>/index.html`.
 
 ## Conventions
 
-1. **Mirror the production package** — `commonTest/kotlin/com/xergioalex/kmpstarter/Greeting.kt` becomes `commonTest/kotlin/com/xergioalex/kmpstarter/GreetingTest.kt`
+1. **Mirror the production package** — `commonTest/kotlin/com/xergioalex/kmptodoapp/Greeting.kt` becomes `commonTest/kotlin/com/xergioalex/kmptodoapp/GreetingTest.kt`
 2. **Class name = production class + `Test`** (`Greeting` → `GreetingTest`)
 3. **Method name describes the behavior** — `returnsHelloWithPlatformName`. Keep them in `camelCase` for portability across Native/Wasm runners.
 4. **Arrange / Act / Assert** structure with a blank line between sections
@@ -38,7 +38,7 @@ Reports land at `composeApp/build/reports/tests/<task>/index.html`.
 6. **No shared mutable state** between tests — tear down or use fresh instances each test
 
 ```kotlin
-package com.xergioalex.kmpstarter
+package com.xergioalex.kmptodoapp
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

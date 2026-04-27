@@ -34,8 +34,8 @@ If yes, recommend the library and **don't** add the `expect`. If no, proceed.
 ### 1. Author the `expect` in `commonMain`
 
 ```kotlin
-// commonMain/kotlin/com/xergioalex/kmpstarter/storage/SecureStorage.kt
-package com.xergioalex.kmpstarter.storage
+// commonMain/kotlin/com/xergioalex/kmptodoapp/storage/SecureStorage.kt
+package com.xergioalex.kmptodoapp.storage
 
 expect class SecureStorage {
     fun getString(key: String): String?
@@ -47,8 +47,8 @@ expect class SecureStorage {
 Or top-level functions:
 
 ```kotlin
-// commonMain/kotlin/com/xergioalex/kmpstarter/clock/Clock.kt
-package com.xergioalex.kmpstarter.clock
+// commonMain/kotlin/com/xergioalex/kmptodoapp/clock/Clock.kt
+package com.xergioalex.kmptodoapp.clock
 
 expect fun nowMillis(): Long
 ```
@@ -66,8 +66,8 @@ The five files. Always create all of them in the same commit.
 #### androidMain
 
 ```kotlin
-// androidMain/kotlin/com/xergioalex/kmpstarter/storage/SecureStorage.android.kt
-package com.xergioalex.kmpstarter.storage
+// androidMain/kotlin/com/xergioalex/kmptodoapp/storage/SecureStorage.android.kt
+package com.xergioalex.kmptodoapp.storage
 
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -93,8 +93,8 @@ If the `actual` requires a parameter only available on Android (`Context`), the 
 #### iosMain
 
 ```kotlin
-// iosMain/kotlin/com/xergioalex/kmpstarter/storage/SecureStorage.ios.kt
-package com.xergioalex.kmpstarter.storage
+// iosMain/kotlin/com/xergioalex/kmptodoapp/storage/SecureStorage.ios.kt
+package com.xergioalex.kmptodoapp.storage
 
 import platform.Foundation.NSUserDefaults
 
@@ -112,13 +112,13 @@ actual class SecureStorage {
 #### jvmMain
 
 ```kotlin
-// jvmMain/kotlin/com/xergioalex/kmpstarter/storage/SecureStorage.jvm.kt
-package com.xergioalex.kmpstarter.storage
+// jvmMain/kotlin/com/xergioalex/kmptodoapp/storage/SecureStorage.jvm.kt
+package com.xergioalex.kmptodoapp.storage
 
 import java.util.prefs.Preferences
 
 actual class SecureStorage {
-    private val prefs = Preferences.userRoot().node("com/xergioalex/kmpstarter")
+    private val prefs = Preferences.userRoot().node("com/xergioalex/kmptodoapp")
 
     actual fun getString(key: String): String? = prefs.get(key, null)
     actual fun setString(key: String, value: String) { prefs.put(key, value) }
@@ -131,8 +131,8 @@ actual class SecureStorage {
 #### jsMain
 
 ```kotlin
-// jsMain/kotlin/com/xergioalex/kmpstarter/storage/SecureStorage.js.kt
-package com.xergioalex.kmpstarter.storage
+// jsMain/kotlin/com/xergioalex/kmptodoapp/storage/SecureStorage.js.kt
+package com.xergioalex.kmptodoapp.storage
 
 import kotlinx.browser.localStorage
 
@@ -148,8 +148,8 @@ actual class SecureStorage {
 #### wasmJsMain
 
 ```kotlin
-// wasmJsMain/kotlin/com/xergioalex/kmpstarter/storage/SecureStorage.wasmJs.kt
-package com.xergioalex.kmpstarter.storage
+// wasmJsMain/kotlin/com/xergioalex/kmptodoapp/storage/SecureStorage.wasmJs.kt
+package com.xergioalex.kmptodoapp.storage
 
 import kotlinx.browser.localStorage
 
@@ -172,8 +172,8 @@ Strict convention:
 If the abstraction has testable behavior, add a `commonTest` smoke test (it'll run for each test-capable target):
 
 ```kotlin
-// commonTest/kotlin/com/xergioalex/kmpstarter/clock/ClockTest.kt
-package com.xergioalex.kmpstarter.clock
+// commonTest/kotlin/com/xergioalex/kmptodoapp/clock/ClockTest.kt
+package com.xergioalex.kmptodoapp.clock
 
 import kotlin.test.Test
 import kotlin.test.assertTrue
