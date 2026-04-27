@@ -10,6 +10,7 @@
 
 | Category | Guide | Purpose |
 |----------|-------|---------|
+| **App overview** | [App Overview](docs/APP_OVERVIEW.md) | Feature list, persistence per target, source set layout, KMP patterns demonstrated |
 | Architecture | [Architecture](docs/ARCHITECTURE.md) | Source sets, expect/actual, Compose Multiplatform, module layout |
 | Technologies | [Technologies](docs/TECHNOLOGIES.md) | Stack overview with versions and roles |
 | Standards | [Standards](docs/STANDARDS.md) | Kotlin/Compose conventions, naming, import order, expect/actual rules |
@@ -30,9 +31,18 @@
 
 **KMPTodoApp** — a cross-platform Todo app built with Kotlin Multiplatform and Compose Multiplatform. The shared `:composeApp` module produces apps for **Android, iOS (arm64 + simulator arm64), Desktop JVM, Web JS, and Web Wasm** from a single Compose UI written in `commonMain`.
 
-Bootstrapped from [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpstarter); the current code is still the upstream "Hello World" (a `Greeting` and a button) and is being grown into a Todo app feature by feature.
+**Feature set (v1):**
+- Full CRUD with title, notes, category, priority (Low / Medium / High), due date, done flag
+- Filter (All / Active / Done) + free-text search; mark done with strikethrough; clear-completed action
+- Material 3 date picker for due dates; theme switcher (System / Light / Dark) persisted per device
+- i18n EN + ES via Compose Multiplatform resources; locale follows the system
+- Adaptive layout (single-pane on phones, list+detail on tablet/desktop/web ≥ 720 dp)
+- Native share via `expect/actual`: Android Intent / iOS `UIActivityViewController` / Desktop clipboard / browser `navigator.clipboard`
+- Persistent storage on Android, iOS, Desktop via SQLDelight (real SQLite). Web (JS/Wasm) is in-memory in v1; SQLDelight `web-worker-driver` is a documented follow-up
 
-> Renameable identifiers (project name, applicationId, namespace, mainClass, packageName, app display name, window title, web title, iOS framework name) are still flagged in source with `// FORK-RENAME:` comments from the upstream starter — `grep -rn 'FORK-RENAME' .` to list them. See [Fork Customization](docs/FORK_CUSTOMIZATION.md) if you fork this repo into another product.
+> **Read [App Overview](docs/APP_OVERVIEW.md) first.** It walks the feature list against the source set layout and shows which KMP patterns each piece exercises.
+
+Bootstrapped from [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpstarter). Renameable identifiers from the upstream starter are still flagged in source with `// FORK-RENAME:` comments — `grep -rn 'FORK-RENAME' .` to list them. See [Fork Customization](docs/FORK_CUSTOMIZATION.md) if you re-fork this repo into another product.
 
 **Technology Stack** (full list with versions: [Technologies](docs/TECHNOLOGIES.md))
 
@@ -40,11 +50,13 @@ Bootstrapped from [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpsta
 - **Compose Multiplatform 1.10.3** — Shared declarative UI
 - **Material 3 1.10.0-alpha05** — Design system
 - **AndroidX Lifecycle 2.10.0** — `viewmodel-compose`, `runtime-compose`
+- **SQLDelight 2.1.0** — Type-safe SQLite for Android / iOS / JVM (`nonWebMain`)
+- **multiplatform-settings 1.2.0** — Persistent key-value backed by `SharedPreferences` / `NSUserDefaults` / `java.util.prefs` / `localStorage`
+- **kotlinx-datetime 0.7.1** — `LocalDateTime` + `TimeZone` formatting; pairs with `kotlin.time` for `Instant`/`Clock`
+- **kotlinx-coroutines 1.10.2** — Core + `kotlinx-coroutines-swing` (Desktop dispatcher)
 - **Compose Hot Reload 1.0.0** — Live reload on Desktop JVM
 - **AGP 8.11.2** — Android Gradle Plugin (compileSdk 36, minSdk 24, targetSdk 36)
-- **Java 11** — Source/target compatibility
-- **Gradle Wrapper** — `./gradlew`
-- **kotlinx-coroutines-swing 1.10.2** — Desktop coroutine dispatcher
+- **Java 11** — Source/target compatibility (build with **JDK 21** — Gradle 8.14 doesn't yet recognize newer JDKs)
 - **kotlin.test** — Unified test framework
 
 ## Project Structure
@@ -55,17 +67,27 @@ Bootstrapped from [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpsta
 composeApp/
 └── src/
     ├── commonMain/kotlin/com/xergioalex/kmptodoapp/
-    │   ├── App.kt              # Shared root composable — all UI starts here
-    │   ├── Platform.kt         # expect interface for platform info
-    │   └── Greeting.kt         # Shared business logic example
-    ├── commonMain/composeResources/   # Shared images/strings (generated `Res`)
-    ├── commonTest/kotlin/      # Shared kotlin.test tests
-    ├── androidMain/            # Android: MainActivity, Platform.android.kt, AndroidManifest.xml, res/
-    ├── iosMain/                # iOS: MainViewController(), Platform.ios.kt
-    ├── jvmMain/                # Desktop: main.kt with Window { App() }, Platform.jvm.kt
-    ├── webMain/                # Shared web entry: ComposeViewport { App() } + index.html
-    ├── jsMain/                 # JS-only: Platform.js.kt
-    └── wasmJsMain/             # Wasm-only: Platform.wasmJs.kt
+    │   ├── App.kt                      # Shared root + state-based routing + adaptive layout
+    │   ├── AppContainer.kt             # DI-lite holder (TaskRepository, AppSettings, TaskSharer)
+    │   ├── domain/                     # Task, TaskDraft, Priority, TaskFilter, TaskRepository
+    │   ├── settings/                   # AppSettings + ThemeMode (multiplatform-settings)
+    │   ├── platform/                   # TaskSharer interface + share-text builder
+    │   ├── ui/list/, ui/edit/, ui/settings/, ui/theme/
+    │   └── ui/Formatters.kt
+    ├── commonMain/composeResources/values{,-es}/strings.xml   # i18n EN + ES
+    ├── commonTest/kotlin/                                       # Shared kotlin.test tests
+    │
+    ├── nonWebMain/                     # Intermediate set seen only by Android/iOS/JVM
+    │   ├── kotlin/.../data/SqlTaskRepository.kt
+    │   ├── kotlin/.../data/DatabaseDriverFactory.kt    # expect class
+    │   └── sqldelight/com/xergioalex/kmptodoapp/db/Tasks.sq
+    │
+    ├── androidMain/    # MainActivity, AndroidTaskSharer, AndroidSqliteDriver actual
+    ├── iosMain/        # MainViewController, IosTaskSharer, NativeSqliteDriver actual
+    ├── jvmMain/        # Window { App() }, JvmTaskSharer (clipboard), JdbcSqliteDriver actual
+    ├── webMain/        # Shared between JS+Wasm: ComposeViewport entry + InMemoryTaskRepository
+    ├── jsMain/         # JsTaskSharer + createTaskSharer actual
+    └── wasmJsMain/     # WasmTaskSharer + createTaskSharer actual
 
 iosApp/                         # Xcode project consuming the iOS framework `ComposeApp`
 gradle/libs.versions.toml       # Single version catalog — pin all dependencies here
