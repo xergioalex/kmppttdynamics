@@ -79,8 +79,8 @@ fun TaskEditScreen(
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(state.saved, state.deleted) {
-        if (state.saved || state.deleted) onDone()
+    LaunchedEffect(viewModel) {
+        viewModel.effects.collect { onDone() }
     }
 
     Scaffold(
