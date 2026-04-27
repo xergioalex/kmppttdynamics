@@ -8,15 +8,18 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
+    alias(libs.plugins.sqldelight)
 }
 
 kotlin {
+    applyDefaultHierarchyTemplate()
+
     androidTarget {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
         }
     }
-    
+
     listOf(
         iosArm64(),
         iosSimulatorArm64()
@@ -30,24 +33,25 @@ kotlin {
             isStatic = true
         }
     }
-    
+
     jvm()
-    
+
     js {
         browser()
         binaries.executable()
     }
-    
+
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
         binaries.executable()
     }
-    
+
     sourceSets {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.sqldelight.driver.android)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -56,15 +60,39 @@ kotlin {
             implementation(libs.compose.ui)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
+            implementation(libs.compose.materialIconsCore)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation(libs.kotlinx.coroutinesCore)
+            implementation(libs.kotlinx.datetime)
+            implementation(libs.multiplatformSettings)
+            implementation(libs.sqldelight.runtime)
+            implementation(libs.sqldelight.coroutines)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        val nonWebMain by creating { dependsOn(commonMain.get()) }
+        androidMain.get().dependsOn(nonWebMain)
+        iosMain.get().dependsOn(nonWebMain)
+        jvmMain.get().dependsOn(nonWebMain)
+        iosMain.dependencies {
+            implementation(libs.sqldelight.driver.native)
+        }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            implementation(libs.sqldelight.driver.sqlite)
+        }
+    }
+}
+
+sqldelight {
+    databases {
+        create("TodoDatabase") {
+            packageName.set("com.xergioalex.kmptodoapp.db")
+            srcDirs.setFrom("src/nonWebMain/sqldelight")
+            generateAsync.set(false)
         }
     }
 }
