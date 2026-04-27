@@ -4,6 +4,17 @@ A Kotlin Multiplatform / Compose Multiplatform **starter template** targeting An
 
 > **You're forking this?** Walk through [`docs/FORK_CUSTOMIZATION.md`](docs/FORK_CUSTOMIZATION.md) before writing product code. Every renameable identifier is also flagged in source with `// FORK-RENAME:` comments — `grep -rn 'FORK-RENAME'` to list them.
 
+## Getting started (new to KMP?)
+
+If this is your first Kotlin Multiplatform project on macOS, walk these in order:
+
+1. [`docs/getting-started/ENVIRONMENT_SETUP.md`](docs/getting-started/ENVIRONMENT_SETUP.md) — install Android Studio, Xcode, the KMP plugin, and Java 21
+2. [`docs/getting-started/RUNNING_THE_APP.md`](docs/getting-started/RUNNING_THE_APP.md) — run on Android (emulator + real device), iOS (simulator + real iPhone), Desktop, and Web
+3. [`docs/getting-started/TROUBLESHOOTING.md`](docs/getting-started/TROUBLESHOOTING.md) — every issue we actually hit during setup, with fixes
+4. [`docs/getting-started/FLUTTER_BONUS.md`](docs/getting-started/FLUTTER_BONUS.md) — optional Flutter setup + KMP-vs-Flutter comparison
+
+Already set up? Skip to the quick start below.
+
 ## Quick start
 
 ```bash
@@ -29,6 +40,7 @@ Full command reference: [`docs/DEVELOPMENT_COMMANDS.md`](docs/DEVELOPMENT_COMMAN
 
 | Topic | File |
 |---|---|
+| Getting started (macOS, from zero) | [`docs/getting-started/`](docs/getting-started/) |
 | Architecture & source sets | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Stack and versions | [`docs/TECHNOLOGIES.md`](docs/TECHNOLOGIES.md) |
 | Coding standards | [`docs/STANDARDS.md`](docs/STANDARDS.md) |
