@@ -31,6 +31,10 @@ kotlin {
             // is an internal name no end user sees. See docs/FORK_CUSTOMIZATION.md.
             baseName = "ComposeApp"
             isStatic = true
+            // SQLDelight's NativeSqliteDriver calls into libsqlite3 (system framework
+            // on iOS); tell the Kotlin/Native linker to link it so symbols like
+            // _sqlite3_open_v2 are resolved when Xcode links the app.
+            linkerOpts("-lsqlite3")
         }
     }
 
