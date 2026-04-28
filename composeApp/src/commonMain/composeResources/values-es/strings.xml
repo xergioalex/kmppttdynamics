@@ -41,9 +41,75 @@
     <string name="room_host_resume">Reanudar</string>
     <string name="room_host_end">Finalizar</string>
 
+    <string name="tab_live">En vivo</string>
+    <string name="tab_chat">Chat</string>
+    <string name="tab_qa">Q&amp;A</string>
+    <string name="tab_polls">Encuestas</string>
+    <string name="tab_raffles">Sorteos</string>
+
+    <string name="chat_input_hint">Escribe un mensaje…</string>
+    <string name="chat_send">Enviar</string>
+    <string name="chat_announce_hint">Envía un anuncio a todo el room</string>
+    <string name="chat_announce">Anunciar</string>
+    <string name="chat_announce_label">Anuncio</string>
+    <string name="chat_empty">Aún no hay mensajes — empieza la conversación.</string>
+    <string name="chat_hide">Ocultar</string>
+
+    <string name="hand_raise">Levantar la mano</string>
+    <string name="hand_lower">Bajar la mano</string>
+    <string name="hand_message_hint">Contexto opcional (ej. \"pregunta sobre la diapositiva 12\")</string>
+    <string name="hand_queue">Cola de manos</string>
+    <string name="hand_queue_empty">Nadie tiene la mano levantada.</string>
+    <string name="hand_status_raised">Levantada</string>
+    <string name="hand_status_acknowledged">Reconocida</string>
+    <string name="hand_status_speaking">Hablando</string>
+    <string name="hand_action_acknowledge">Reconocer</string>
+    <string name="hand_action_speaking">Está hablando</string>
+    <string name="hand_action_lower">Bajar</string>
+    <string name="hand_action_dismiss">Descartar</string>
+
+    <string name="qa_ask_hint">Pregúntale al speaker…</string>
+    <string name="qa_ask">Preguntar</string>
+    <string name="qa_empty">Aún no hay preguntas — sé el primero.</string>
+    <string name="qa_upvotes">%1$d votos</string>
+    <string name="qa_status_open">Abierta</string>
+    <string name="qa_status_answered">Respondida</string>
+    <string name="qa_mark_answered">Marcar respondida</string>
+    <string name="qa_hide">Ocultar</string>
+
+    <string name="polls_create">Crear encuesta</string>
+    <string name="polls_empty">Aún no hay encuestas.</string>
+    <string name="polls_close">Cerrar encuesta</string>
+    <string name="polls_status_draft">Borrador</string>
+    <string name="polls_status_open">Abierta</string>
+    <string name="polls_status_closed">Cerrada</string>
+    <string name="polls_field_question">Pregunta</string>
+    <string name="polls_field_option">Opción %1$d</string>
+    <string name="polls_add_option">Agregar opción</string>
+    <string name="polls_remove_option">Quitar</string>
+    <string name="polls_anonymous">Voto anónimo</string>
+    <string name="polls_total_votes">%1$d votos</string>
+    <string name="polls_publish">Publicar encuesta</string>
+
+    <string name="raffles_create">Crear sorteo</string>
+    <string name="raffles_empty">Aún no hay sorteos.</string>
+    <string name="raffles_field_title">Premio / título</string>
+    <string name="raffles_status_open">Abierto</string>
+    <string name="raffles_status_drawn">Ganador elegido</string>
+    <string name="raffles_status_closed">Cerrado</string>
+    <string name="raffles_enter">Participar</string>
+    <string name="raffles_entered">Ya participas</string>
+    <string name="raffles_enroll_all">Inscribir a todos</string>
+    <string name="raffles_draw_winner">Elegir ganador</string>
+    <string name="raffles_close">Cerrar</string>
+    <string name="raffles_entries">%1$d participantes</string>
+    <string name="raffles_winner">Ganador: %1$s</string>
+    <string name="raffles_no_entries">Aún nadie participa.</string>
+
     <string name="action_back">Atrás</string>
     <string name="action_cancel">Cancelar</string>
     <string name="action_retry">Reintentar</string>
+    <string name="action_delete">Eliminar</string>
     <string name="error_generic">Algo salió mal.</string>
     <string name="error_supabase_not_configured">Supabase no está configurado. Define SUPABASE_URL y SUPABASE_PUBLISHABLE_KEY en .env y vuelve a compilar.</string>
     <string name="empty_detail">Selecciona un meetup o crea uno nuevo</string>

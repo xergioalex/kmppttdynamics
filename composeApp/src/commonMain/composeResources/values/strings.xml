@@ -28,7 +28,7 @@
     <string name="join_action_join">Join</string>
     <string name="join_meetup_not_found">No meetup found for that code.</string>
 
-    <!-- Room -->
+    <!-- Room (header + Live tab) -->
     <string name="room_status_draft">Draft</string>
     <string name="room_status_live">Live</string>
     <string name="room_status_paused">Paused</string>
@@ -45,10 +45,82 @@
     <string name="room_host_resume">Resume</string>
     <string name="room_host_end">End meetup</string>
 
+    <!-- Tabs -->
+    <string name="tab_live">Live</string>
+    <string name="tab_chat">Chat</string>
+    <string name="tab_qa">Q&amp;A</string>
+    <string name="tab_polls">Polls</string>
+    <string name="tab_raffles">Raffles</string>
+
+    <!-- Chat (M2) -->
+    <string name="chat_input_hint">Write a message…</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_announce_hint">Send an announcement to the whole room</string>
+    <string name="chat_announce">Announce</string>
+    <string name="chat_announce_label">Announcement</string>
+    <string name="chat_empty">No messages yet — start the conversation.</string>
+    <string name="chat_hide">Hide</string>
+
+    <!-- Hand raise (M3) -->
+    <string name="hand_raise">Raise hand</string>
+    <string name="hand_lower">Lower hand</string>
+    <string name="hand_message_hint">Optional context (e.g. \"question on slide 12\")</string>
+    <string name="hand_queue">Hand queue</string>
+    <string name="hand_queue_empty">No hands raised right now.</string>
+    <string name="hand_status_raised">Raised</string>
+    <string name="hand_status_acknowledged">Acknowledged</string>
+    <string name="hand_status_speaking">Speaking</string>
+    <string name="hand_action_acknowledge">Acknowledge</string>
+    <string name="hand_action_speaking">Speaking</string>
+    <string name="hand_action_lower">Lower</string>
+    <string name="hand_action_dismiss">Dismiss</string>
+
+    <!-- Q&A (M3) -->
+    <string name="qa_ask_hint">Ask the speaker something…</string>
+    <string name="qa_ask">Ask</string>
+    <string name="qa_empty">No questions yet — be the first.</string>
+    <string name="qa_upvotes">%1$d upvotes</string>
+    <string name="qa_status_open">Open</string>
+    <string name="qa_status_answered">Answered</string>
+    <string name="qa_mark_answered">Mark answered</string>
+    <string name="qa_hide">Hide</string>
+
+    <!-- Polls (M4) -->
+    <string name="polls_create">Create poll</string>
+    <string name="polls_empty">No polls yet.</string>
+    <string name="polls_close">Close poll</string>
+    <string name="polls_status_draft">Draft</string>
+    <string name="polls_status_open">Open</string>
+    <string name="polls_status_closed">Closed</string>
+    <string name="polls_field_question">Question</string>
+    <string name="polls_field_option">Option %1$d</string>
+    <string name="polls_add_option">Add option</string>
+    <string name="polls_remove_option">Remove</string>
+    <string name="polls_anonymous">Anonymous votes</string>
+    <string name="polls_total_votes">%1$d votes</string>
+    <string name="polls_publish">Publish poll</string>
+
+    <!-- Raffles (M5) -->
+    <string name="raffles_create">Create raffle</string>
+    <string name="raffles_empty">No raffles yet.</string>
+    <string name="raffles_field_title">Prize / title</string>
+    <string name="raffles_status_open">Open</string>
+    <string name="raffles_status_drawn">Drawn</string>
+    <string name="raffles_status_closed">Closed</string>
+    <string name="raffles_enter">Enter raffle</string>
+    <string name="raffles_entered">You\'re in</string>
+    <string name="raffles_enroll_all">Enroll everyone</string>
+    <string name="raffles_draw_winner">Draw winner</string>
+    <string name="raffles_close">Close</string>
+    <string name="raffles_entries">%1$d entries</string>
+    <string name="raffles_winner">Winner: %1$s</string>
+    <string name="raffles_no_entries">No one has entered yet.</string>
+
     <!-- Common -->
     <string name="action_back">Back</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_retry">Retry</string>
+    <string name="action_delete">Delete</string>
     <string name="error_generic">Something went wrong.</string>
     <string name="error_supabase_not_configured">Supabase is not configured. Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env and rebuild.</string>
     <string name="empty_detail">Pick a meetup or create a new one</string>

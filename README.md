@@ -35,25 +35,29 @@ App
 Every dynamic is scoped by `meetup_id`. Every device updates live via
 **Supabase Realtime** (Postgres CDC + presence + broadcast).
 
-## Current milestone
+## Current milestones
 
 | Milestone | Status |
 |---|---|
 | **M1 — Rooms + Participants + realtime foundation** | ✅ Implemented |
-| M2 — Chat + Announcements                            | ⏳ Planned |
-| M3 — Raise hand + Q&A                                | ⏳ Planned |
-| M4 — Polls                                           | ⏳ Planned |
-| M5 — Raffles                                         | ⏳ Planned |
+| **M2 — Chat + Announcements**                        | ✅ Implemented |
+| **M3 — Raise hand + Q&A**                            | ✅ Implemented |
+| **M4 — Polls**                                       | ✅ Implemented |
+| **M5 — Raffles**                                     | ✅ Implemented |
 | M6 — Host dashboard polish, projection-friendly views | ⏳ Planned |
+| M7+ — Trivia, reactions, leaderboard, QR check-in, Supabase Auth, hardened RLS, Edge Functions, analytics | ⏳ Planned |
 
 What works today:
 
-- Create meetup with a generated 6-char join code
-- List live & past meetups on the home screen
-- Join by code or by tapping a meetup
-- Pick a display name, optionally elevate to host
-- Room screen with realtime participant list
-- Host controls (start / pause / end the meetup)
+- **Rooms**: create meetup with a generated 6-char join code, list live + past meetups, join by code or by tapping a meetup, host start/pause/end
+- **Participants**: pick a display name, optionally elevate to host, realtime online/offline indicator
+- **Chat**: per-room realtime chat, host announcements (highlighted), host hide-message moderation
+- **Hand raise**: participant raise/lower with optional context, host queue with acknowledge / speaking / lower / dismiss states
+- **Q&A**: ask, upvote (one vote per participant via DB unique index), host mark-answered + hide, sorted by upvotes
+- **Polls**: host create with 2–6 options + anonymous toggle, single-choice vote (revoting overrides), realtime tally with progress bars, host close
+- **Raffles**: host create, participants enter (or host enrolls everyone), host draws a random winner with an animated reveal that propagates to every device
+
+The room is a `PrimaryScrollableTabRow` with tabs **Live · ✋ · Chat · Q&A · Polls · Raffles**. Each tab subscribes to its own Supabase Realtime channel scoped by `meetup_id`.
 
 ## Tech stack
 
@@ -262,10 +266,10 @@ assets/pereiratechtalks/             # Source logos used for branding
 ## Roadmap
 
 - [x] **M1** Rooms + participants + realtime
-- [ ] **M2** Chat + announcements
-- [ ] **M3** Raise hand + Q&A
-- [ ] **M4** Polls
-- [ ] **M5** Raffles
+- [x] **M2** Chat + announcements
+- [x] **M3** Raise hand + Q&A
+- [x] **M4** Polls
+- [x] **M5** Raffles
 - [ ] **M6** Host dashboard polish (projection mode, dark theme audit)
 - [ ] **M7+** Trivia, reactions, leaderboard, QR check-in, Supabase Auth, hardened RLS, Edge Functions for fair raffle draws, analytics, event-history exports
 

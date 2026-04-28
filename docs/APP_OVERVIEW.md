@@ -35,10 +35,10 @@ Anonymous participation is allowed in the MVP — host-only enforcement is curre
 | # | Scope | Status |
 |---|---|---|
 | **M1** | **Rooms + Participants + realtime foundation** | ✅ Implemented |
-| M2 | Chat + announcements                           | ⏳ Planned |
-| M3 | Raise hand + Q&A                               | ⏳ Planned |
-| M4 | Polls                                          | ⏳ Planned |
-| M5 | Raffles                                        | ⏳ Planned |
+| **M2** | **Chat + announcements**                       | ✅ Implemented |
+| **M3** | **Raise hand + Q&A (with upvotes)**            | ✅ Implemented |
+| **M4** | **Polls (single-choice, anonymous default)**   | ✅ Implemented |
+| **M5** | **Raffles (host-side draw + reveal)**          | ✅ Implemented |
 | M6 | Host dashboard polish, projection-friendly views | ⏳ Planned |
 | M7+ | Trivia, reactions, leaderboard, QR check-in, Supabase Auth, hardened RLS, Edge Functions, analytics, history exports | ⏳ Planned |
 
@@ -53,19 +53,29 @@ Anonymous participation is allowed in the MVP — host-only enforcement is curre
 - Online + total participant counts
 - Friendly "Supabase not configured" screen if `.env` is empty
 
-### Source-set layout for M1
+### Source-set layout
 
 ```
 commonMain
-  domain/        Meetup, MeetupParticipant, MeetupStatus, ParticipantRole
-  supabase/      SupabaseClientProvider (lazy, BuildKonfig-driven)
-  meetups/       MeetupRepository (REST + realtime channel for "meetups")
-  participants/  ParticipantRepository (REST + realtime channel for "meetup_participants")
-  settings/      AppSettings — theme + last display name (multiplatform-settings)
-  ui/{home,create,join,room,theme,components}
+  domain/         Meetup, MeetupParticipant, MeetupStatus, ParticipantRole,
+                  ChatMessage, ChatType, ChatStatus,
+                  RaisedHand, HandStatus,
+                  Question, QuestionStatus, QuestionVote,
+                  Poll, PollOption, PollVote, PollStatus,
+                  Raffle, RaffleEntry, RaffleWinner, RaffleStatus
+  supabase/       SupabaseClientProvider (lazy, BuildKonfig-driven)
+  meetups/        MeetupRepository
+  participants/   ParticipantRepository
+  chat/           ChatRepository
+  handraise/      HandRepository
+  qa/             QuestionRepository (with question_votes upvote handling)
+  polls/          PollRepository (PollBoard snapshot)
+  raffles/        RaffleRepository (RaffleBoard snapshot, host-side draw)
+  settings/       AppSettings — theme + last display name (multiplatform-settings)
+  ui/{home,create,join,room,room/tabs,theme,components}
 ```
 
-Every realtime feed lives in `commonMain`. No platform-side cloning.
+Every realtime feed lives in `commonMain`. No platform-side cloning. Each repository owns its own Supabase Realtime channel; the room mounts six channels concurrently (`participants`, `chat`, `hands`, `questions`, `polls`, `raffles`) which is well within Supabase's free-tier limit of 200 concurrent connections per project.
 
 ## KMP patterns demonstrated
 
