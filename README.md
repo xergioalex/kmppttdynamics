@@ -100,7 +100,7 @@ Fill in:
 | `SUPABASE_PUBLISHABLE_KEY` | Project Settings → API → `anon` / publishable key | client (BuildKonfig) |
 | `SUPABASE_PROJECT_REF` | The subdomain in your project URL | `scripts/supabase_apply.sh` |
 | `SUPABASE_DB_PASSWORD` | The password you set when you created the project | `scripts/supabase_apply.sh` |
-| `SUPABASE_DB_URL` *(optional)* | Project Settings → Database → Connection string | `scripts/supabase_apply.sh` (overrides the previous two) |
+| `SUPABASE_DB_URL` *(optional, recommended)* | Project Settings → Database → **Session pooler** | `scripts/supabase_apply.sh` (overrides the previous two; pooler URL works on every network) |
 | `SUPABASE_ACCESS_TOKEN` *(optional)* | Account → Access Tokens | `supabase` CLI |
 | `SUPABASE_SECRET_KEY` *(optional)* | Project Settings → API → service_role key | trusted backend scripts only |
 
@@ -119,6 +119,18 @@ Fill in:
 
 This runs every file in `supabase/migrations/` against the database via
 `psql`. Re-runs are safe — every statement is idempotent.
+
+> **Networking gotcha.** Supabase's direct host `db.<ref>.supabase.co`
+> publishes only an IPv6 address. On macOS, `getaddrinfo()` sometimes
+> refuses AAAA-only records even when IPv6 routing is fine, breaking
+> `psql`. The script auto-falls back to the literal IPv6, but the
+> proper fix is to set `SUPABASE_DB_URL` to the **Session Pooler** URL
+> (`Project Settings → Database → Session pooler`). It's IPv4+IPv6 and
+> works on every dev network.
+
+> **`psql` not on PATH?** Homebrew's `libpq` is keg-only. The script
+> auto-detects `/opt/homebrew/opt/libpq/bin/psql`; for a permanent fix
+> run `brew link --force libpq`.
 
 The first migration creates:
 
