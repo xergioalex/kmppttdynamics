@@ -6,11 +6,11 @@ Per-target reference: entry point, capabilities, gotchas. Read the section for t
 
 | Target | Source set | Entry point | Output | Min version |
 |---|---|---|---|---|
-| Android | `androidMain` | `MainActivity.setContent { App() }` | APK / AAB | API 24 (Android 7.0) |
-| iOS | `iosMain` | `MainViewController()` (called from Swift) | Static framework `ComposeApp` | iOS 13 (Compose-MP minimum) |
-| Desktop JVM | `jvmMain` | `application { Window { App() } }` | Dmg / Msi / Deb | Java 11 |
-| Web Wasm | `webMain` (shared) | `ComposeViewport { App() }` | Static bundle | Modern browsers (Wasm GC) |
-| Web JS | `webMain` (shared) | `ComposeViewport { App() }` | Static bundle | Older browsers (legacy) |
+| Android | `androidMain` | `MainActivity.setContent { App(container) }` | APK / AAB | API 24 (Android 7.0) |
+| iOS | `iosMain` | `MainViewController()` returns `ComposeUIViewController { App(container) }` | Static framework `ComposeApp` | iOS 13 (Compose-MP minimum) |
+| Desktop JVM | `jvmMain` | `application { Window { App(container) } }` | Dmg / Msi / Deb | Java 11 |
+| Web Wasm | `webMain` (shared) | `ComposeViewport { App(container) }` | Static bundle | Modern browsers (Wasm GC) |
+| Web JS | `webMain` (shared) | `ComposeViewport { App(container) }` | Static bundle | Older browsers (legacy) |
 
 ---
 
@@ -18,14 +18,16 @@ Per-target reference: entry point, capabilities, gotchas. Read the section for t
 
 ### Entry point
 
-`composeApp/src/androidMain/kotlin/com/xergioalex/kmptodoapp/MainActivity.kt`:
+`composeApp/src/androidMain/kotlin/com/xergioalex/kmppttdynamics/MainActivity.kt`:
 
 ```kotlin
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setContent { App() }
+        val prefs = applicationContext.getSharedPreferences("kmppttdynamics.settings", MODE_PRIVATE)
+        val container = AppContainer(settings = AppSettings(SharedPreferencesSettings(prefs)))
+        setContent { App(container) }
     }
 }
 ```
@@ -43,7 +45,7 @@ class MainActivity : ComponentActivity() {
 
 In `composeApp/build.gradle.kts`:
 
-- `applicationId` and `namespace`: `com.xergioalex.kmptodoapp`
+- `applicationId` and `namespace`: `com.xergioalex.kmppttdynamics`
 - `compileSdk = 36`, `minSdk = 24`, `targetSdk = 36`
 - `versionCode = 1`, `versionName = "1.0"`
 - `release { isMinifyEnabled = false }` — **change for production** (see [Performance](PERFORMANCE.md))
@@ -78,7 +80,10 @@ The Kotlin side exposes `MainViewController()`:
 
 ```kotlin
 // iosMain/MainViewController.kt
-fun MainViewController() = ComposeUIViewController { App() }
+private val container by lazy {
+    AppContainer(settings = AppSettings(NSUserDefaultsSettings(NSUserDefaults.standardUserDefaults)))
+}
+fun MainViewController() = ComposeUIViewController { App(container) }
 ```
 
 The Swift side consumes it:
@@ -145,9 +150,14 @@ struct iOSApp: App {
 
 ```kotlin
 // jvmMain/main.kt
-fun main() = application {
-    Window(onCloseRequest = ::exitApplication, title = "KMPTodoApp") {
-        App()
+fun main() {
+    val container = AppContainer(
+        settings = AppSettings(PreferencesSettings(Preferences.userRoot().node("com/xergioalex/kmppttdynamics"))),
+    )
+    application {
+        Window(onCloseRequest = ::exitApplication, title = "PTT Dynamics") {
+            App(container)
+        }
     }
 }
 ```
@@ -159,10 +169,10 @@ In `composeApp/build.gradle.kts`:
 ```kotlin
 compose.desktop {
     application {
-        mainClass = "com.xergioalex.kmptodoapp.MainKt"
+        mainClass = "com.xergioalex.kmppttdynamics.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.xergioalex.kmptodoapp"
+            packageName = "com.xergioalex.kmppttdynamics"
             packageVersion = "1.0.0"
         }
     }
@@ -203,7 +213,8 @@ Both web targets share `webMain`:
 // webMain/main.kt
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
-    ComposeViewport { App() }
+    val container = AppContainer(settings = AppSettings(StorageSettings()))
+    ComposeViewport { App(container) }
 }
 ```
 

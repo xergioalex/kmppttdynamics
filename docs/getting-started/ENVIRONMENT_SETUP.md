@@ -2,7 +2,7 @@
 
 A step-by-step guide for setting up a Kotlin Multiplatform / Compose Multiplatform development environment on macOS, starting from zero.
 
-By the end of this guide you will be able to build and run KMPTodoApp on:
+By the end of this guide you will be able to build and run KMPPTTDynamics on:
 
 - Android emulator
 - Physical Android device
@@ -50,7 +50,7 @@ Optional:
    - Android emulator
    - At least one system image (e.g. API 36)
 
-   Accept the defaults — they are what KMPTodoApp uses (`compileSdk = 36`, `minSdk = 24`).
+   Accept the defaults — they are what KMPPTTDynamics uses (`compileSdk = 36`, `minSdk = 24`).
 
 ### Verify it worked
 
@@ -85,7 +85,7 @@ Out of the box, Android Studio shows only Android templates (Empty Activity, Bas
 
 `File → New → New Project…` should now list **Kotlin Multiplatform** as a project template.
 
-> KMPTodoApp is already a working KMP project, so you don't need to create a new one to develop here. The plugin is still useful for the run configurations it adds (e.g., the iOS device target).
+> KMPPTTDynamics is already a working KMP project, so you don't need to create a new one to develop here. The plugin is still useful for the run configurations it adds (e.g., the iOS device target).
 
 ---
 
@@ -126,7 +126,7 @@ You should see the Xcode version and at least one available simulator (e.g., `iP
 
 ### Why Java is needed at all
 
-Xcode itself does not need Java to build a normal Swift app. KMPTodoApp, however, has a **"Compile Kotlin Framework"** build phase in `iosApp/iosApp.xcodeproj` that calls `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode`. Gradle runs on the JVM, so it requires a JDK on `PATH` when Xcode invokes it.
+Xcode itself does not need Java to build a normal Swift app. KMPPTTDynamics, however, has a **"Compile Kotlin Framework"** build phase in `iosApp/iosApp.xcodeproj` that calls `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode`. Gradle runs on the JVM, so it requires a JDK on `PATH` when Xcode invokes it.
 
 Android Studio works around this by shipping its own bundled JDK. Xcode does **not**, so we install one ourselves and point Xcode at it.
 
@@ -181,16 +181,16 @@ java -version    # should report 21.x
 
 ---
 
-## 6. Clone and open KMPTodoApp
+## 6. Clone and open KMPPTTDynamics
 
 ```bash
-git clone https://github.com/xergioalex/kmptodoapp.git
-cd kmptodoapp
+git clone https://github.com/xergioalex/kmppttdynamics.git
+cd kmppttdynamics
 ```
 
 Open the project in Android Studio:
 
-- `File → Open…` → select the `kmptodoapp` folder.
+- `File → Open…` → select the `kmppttdynamics` folder.
 - Wait for the **Gradle sync** to finish (status bar at the bottom). The first sync downloads dependencies and can take several minutes.
 
 If sync fails, jump to [Troubleshooting](TROUBLESHOOTING.md).
@@ -288,7 +288,7 @@ You should see your device listed (e.g. `samsung SM-S928B   device`). If it says
 2. In `iosApp.xcodeproj`, select the **iosApp** target → **Signing & Capabilities**:
    - Tick **Automatically manage signing**.
    - Pick your **Team** (your Apple ID team will appear).
-   - Make sure **Bundle Identifier** is unique to you (e.g. `com.xergioalex.kmptodoapp` — see `// FORK-RENAME:` comments if you've forked this repo).
+   - Make sure **Bundle Identifier** is unique to you (e.g. `com.xergioalex.kmppttdynamics` — see `// FORK-RENAME:` comments if you've forked this repo).
 
 ### Verify
 

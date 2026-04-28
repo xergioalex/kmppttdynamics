@@ -1,6 +1,6 @@
 # Flutter Setup (Bonus / Comparison)
 
-KMPTodoApp is a **Kotlin Multiplatform** template, not a Flutter project. This doc exists because both stacks target the same platforms (Android, iOS, Web, Desktop), and developers evaluating KMP often want to also try Flutter side by side.
+KMPPTTDynamics is a **Kotlin Multiplatform** template, not a Flutter project. This doc exists because both stacks target the same platforms (Android, iOS, Web, Desktop), and developers evaluating KMP often want to also try Flutter side by side.
 
 If you only care about KMP, you can skip this entirely.
 
@@ -163,4 +163,4 @@ Neither is "better" in the abstract — they optimize for different things. KMP 
 
 If your team already ships native Android + iOS apps and wants to share the data layer / business logic without losing native UI, **KMP**. If you're building a brand-new app and the UI being identical on every platform is a feature (not a bug), **Flutter** is often faster to a first release.
 
-KMPTodoApp exists because the KMP path has more upfront friction; documenting that friction (this `docs/getting-started/` folder) is part of making the choice fair.
+KMPPTTDynamics exists because the KMP path has more upfront friction; documenting that friction (this `docs/getting-started/` folder) is part of making the choice fair.

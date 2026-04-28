@@ -1,193 +1,149 @@
-# KMPTodoApp — App Overview
+# Pereira Tech Talks Dynamics — App Overview
 
-A cross-platform Todo app written **once in `commonMain`** and deployed to **Android, iOS, Desktop (JVM), Web (Wasm), and Web (JS)**. The point of this project is to exercise the real bondades of Kotlin Multiplatform — shared domain, shared UI, platform code only where it earns its keep — on a small but realistic product.
+A realtime meetup engagement platform written **once in `commonMain`** and deployed to **Android, iOS, Desktop (JVM), Web (Wasm), and Web (JS)**. Built for the [Pereira Tech Talks](https://pereiratechtalks.com) community, designed as a generic Meetup Dynamics product.
 
-> Looking for the runtime story (gradle commands, IDE setup, troubleshooting)? See [Development Commands](DEVELOPMENT_COMMANDS.md), [Running the App](getting-started/RUNNING_THE_APP.md), and [Troubleshooting](getting-started/TROUBLESHOOTING.md).
+## Mental model
 
-## What the app does
+```
+App
+  └── Meetups / Rooms          ← created by the host, joined by a code
+        ├── Participants       ← realtime list, online presence
+        ├── Chat + Announcements
+        ├── Hand Raise queue
+        ├── Q&A with upvotes
+        ├── Polls
+        ├── Raffles
+        ├── Trivia (later)
+        ├── Reactions (later)
+        └── Live Activity Feed
+```
 
-| Feature | Where it lives | Notes |
-|---|---|---|
-| **Create / read / update / delete tasks** | `domain/TaskRepository`, `ui/edit/*` | One screen handles both new and existing tasks |
-| **Title, notes, category, priority, due date, done** | `domain/Task`, `domain/TaskDraft` | All fields shared across every platform |
-| **Priority levels (Low / Medium / High)** | `domain/Priority` | Stored as `INTEGER`; UI uses Material 3 `FilterChip` + colored badges |
-| **Due dates with date picker** | `ui/edit/TaskEditScreen` | Material 3 `DatePicker`; persisted as epoch millis |
-| **Filter (All / Active / Done) + free-text search** | `ui/list/TaskListViewModel` | Filter persists in app settings; search is in-memory over title/notes/category |
-| **Mark done with strikethrough** | `ui/list/TaskListScreen` | Toggling re-sorts: active first, by priority, by due date |
-| **Clear completed** | Top bar action | One-shot `DELETE FROM task WHERE is_done = 1` |
-| **Categories suggested from existing tasks** | `Tasks.sq` `distinctCategories` | Reactive `Flow<List<String>>` |
-| **Theme: System / Light / Dark** | `ui/theme/AppTheme`, `ui/settings/*` | Persisted per-device via `multiplatform-settings` |
-| **i18n: English + Spanish** | `composeResources/values{,-es}/` | Picked from system locale |
-| **Adaptive layout (single-pane vs list+detail)** | `App.kt` | `BoxWithConstraints` threshold of 720 dp |
-| **Share a task** | `platform/TaskSharer` (`expect/actual`) | Native share sheet on Android/iOS, clipboard on Desktop, `navigator.clipboard` on Web |
-| **Persistence** | Per-platform — see below | All four "real" targets keep tasks across reboots |
+Every dynamic is scoped by `meetup_id`. A single Supabase Realtime channel per table per meetup keeps every connected device in sync.
 
-## Persistence per target
+## Roles
 
-`TaskRepository` is a single interface in `commonMain`. Two implementations satisfy it:
-
-| Target | Implementation | Storage backend |
-|---|---|---|
-| Android | `SqlTaskRepository` (`nonWebMain`) | `AndroidSqliteDriver` → `/data/data/<pkg>/databases/kmptodoapp.db` |
-| iOS | `SqlTaskRepository` (`nonWebMain`) | `NativeSqliteDriver` → app sandbox SQLite file |
-| Desktop JVM | `SqlTaskRepository` (`nonWebMain`) | `JdbcSqliteDriver` → `~/.kmptodoapp/kmptodoapp.db` |
-| Web (JS) | `InMemoryTaskRepository` (`webMain`) | `MutableStateFlow<List<Task>>` — resets on reload |
-| Web (Wasm) | `InMemoryTaskRepository` (`webMain`) | Same as JS |
-
-Web persistence is intentionally a follow-up — wiring SQLDelight's `web-worker-driver` requires webpack + `sqljs` setup, and the goal of v1 was to make sure every screen renders and behaves correctly on every target first. The `InMemoryTaskRepository` carries a `FIXME(web-persistence)` marker so the swap is easy to find.
-
-`AppSettings` (theme + filter) follows the same shape but persists everywhere via `multiplatform-settings`:
-
-| Target | Settings backend |
+| Role | What they can do |
 |---|---|
-| Android | `SharedPreferencesSettings` |
-| iOS | `NSUserDefaultsSettings` |
-| Desktop JVM | `PreferencesSettings` (`java.util.prefs`) |
-| Web (JS / Wasm) | `StorageSettings` over `localStorage` |
+| **Global admin** | Create meetups, archive any room. For the MVP this is just the project owner; auth gating arrives in M7. |
+| **Room host** | The participant who joined as host (`role = 'host'`). Starts / pauses / ends the meetup; in later milestones moderates chat, manages raised hands, runs polls / raffles, draws winners. |
+| **Participant** | Joins by code or by tapping a meetup. Can chat, raise hand, ask & upvote questions, vote in polls, enter raffles, react. |
 
-## Source set layout
+Anonymous participation is allowed in the MVP — host-only enforcement is currently UI-side. Hardened RLS / Supabase Auth lands in M7.
+
+## Milestones
+
+| # | Scope | Status |
+|---|---|---|
+| **M1** | **Rooms + Participants + realtime foundation** | ✅ Implemented |
+| M2 | Chat + announcements                           | ⏳ Planned |
+| M3 | Raise hand + Q&A                               | ⏳ Planned |
+| M4 | Polls                                          | ⏳ Planned |
+| M5 | Raffles                                        | ⏳ Planned |
+| M6 | Host dashboard polish, projection-friendly views | ⏳ Planned |
+| M7+ | Trivia, reactions, leaderboard, QR check-in, Supabase Auth, hardened RLS, Edge Functions, analytics, history exports | ⏳ Planned |
+
+### M1 — what works today
+
+- Create meetup with auto-generated 6-char join code (alphabet excludes `0/O/1/I` for stage readability)
+- List live meetups + past meetups on home
+- Join by code or by tapping a meetup
+- Pick a display name; optional "join as host" switch
+- Room screen with realtime participant list (`is_online`, joined-at sort)
+- Host controls: start (`live`) / pause / end
+- Online + total participant counts
+- Friendly "Supabase not configured" screen if `.env` is empty
+
+### Source-set layout for M1
 
 ```
-composeApp/src/
-├── commonMain/                     ← all UI, ViewModels, domain — shared by every target
-│   ├── kotlin/com/xergioalex/kmptodoapp/
-│   │   ├── App.kt                  ← single shared root composable + state-based routing
-│   │   ├── AppContainer.kt         ← DI-lite holder (TaskRepository, AppSettings, TaskSharer)
-│   │   ├── domain/                 ← Task, TaskDraft, Priority, TaskFilter, TaskRepository
-│   │   ├── settings/               ← AppSettings + ThemeMode (multiplatform-settings)
-│   │   ├── platform/               ← TaskSharer interface + share-text builder
-│   │   ├── ui/list, ui/edit, ui/settings, ui/theme
-│   │   └── ui/Formatters.kt        ← due-date formatter
-│   └── composeResources/values{,-es}/strings.xml
-│
-├── nonWebMain/                     ← intermediate set seen only by Android / iOS / JVM
-│   ├── kotlin/.../data/SqlTaskRepository.kt
-│   ├── kotlin/.../data/DatabaseDriverFactory.kt    ← expect class
-│   └── sqldelight/com/xergioalex/kmptodoapp/db/Tasks.sq
-│
-├── androidMain/  ← MainActivity, AndroidTaskSharer, AndroidSqliteDriver actual
-├── iosMain/      ← MainViewController, IosTaskSharer, NativeSqliteDriver actual
-├── jvmMain/      ← Window { App() }, JvmTaskSharer (clipboard), JdbcSqliteDriver actual
-│
-├── webMain/      ← shared between JS + Wasm: ComposeViewport entry + InMemoryTaskRepository
-├── jsMain/       ← JsTaskSharer + createTaskSharer actual
-└── wasmJsMain/   ← WasmTaskSharer + createTaskSharer actual
+commonMain
+  domain/        Meetup, MeetupParticipant, MeetupStatus, ParticipantRole
+  supabase/      SupabaseClientProvider (lazy, BuildKonfig-driven)
+  meetups/       MeetupRepository (REST + realtime channel for "meetups")
+  participants/  ParticipantRepository (REST + realtime channel for "meetup_participants")
+  settings/      AppSettings — theme + last display name (multiplatform-settings)
+  ui/{home,create,join,room,theme,components}
 ```
 
-The `nonWebMain` intermediate source set is added manually:
+Every realtime feed lives in `commonMain`. No platform-side cloning.
+
+## KMP patterns demonstrated
+
+| Pattern | Where it shows up |
+|---|---|
+| Shared domain models | `domain/Meetup.kt`, `domain/MeetupParticipant.kt` (kotlinx-serialization for Postgrest) |
+| Shared UI | Every screen in `ui/` is `@Composable` in `commonMain` |
+| Shared ViewModels | `*ViewModel.kt` extend `androidx.lifecycle.ViewModel` from `commonMain` |
+| `expect`/`actual` | `Platform.kt` + per-platform actuals (kept minimal — most platform glue lives in each `main.kt`) |
+| Multiplatform resources | `composeResources/` strings + `ptt_logo_*.png` accessible via `Res.string.*` / `Res.drawable.*` |
+| Build-time config | BuildKonfig generates a `BuildConfig` Kotlin object from `.env` so commonMain can read SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY |
+| Supabase Realtime in KMP | `MeetupRepository.observeAll()`, `ParticipantRepository.observe(meetupId)` — same flow shape will be reused for every future feature |
+
+## Data model (M1 only)
+
+Two tables drive M1:
+
+```
+meetups
+  id           uuid pk
+  title        text
+  description  text?
+  join_code    text unique
+  status       text  -- draft | live | paused | ended | archived
+  created_by   uuid?
+  starts_at    timestamptz?
+  ended_at     timestamptz?
+  created_at   timestamptz
+
+meetup_participants
+  id            uuid pk
+  meetup_id     uuid fk → meetups
+  user_id       uuid?
+  display_name  text
+  role          text   -- host | participant | moderator
+  is_online     boolean
+  joined_at     timestamptz
+  last_seen_at  timestamptz?
+```
+
+Both are added to the `supabase_realtime` publication via the migration. The full schema for later milestones (chat, hand raises, questions, polls, raffles, activity events) is also created up front in `supabase/migrations/001_init.sql` so the database is ready when each milestone lands.
+
+## Realtime architecture
+
+Every repository that powers a live UI follows the same shape:
 
 ```kotlin
-applyDefaultHierarchyTemplate()
-sourceSets {
-    val nonWebMain by creating { dependsOn(commonMain.get()) }
-    androidMain.get().dependsOn(nonWebMain)
-    iosMain.get().dependsOn(nonWebMain)
-    jvmMain.get().dependsOn(nonWebMain)
+fun observe(meetupId: String): Flow<List<X>> = flow {
+    val channel = supabase.channel("x_$meetupId")
+    val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+        table = "x"
+        filter("meetup_id", FilterOperator.EQ, meetupId)
+    }
+    channel.subscribe()
+    try {
+        emit(fetch(meetupId))                        // initial REST snapshot
+        changes.collect { emit(fetch(meetupId)) }    // refresh on every change
+    } finally {
+        withContext(NonCancellable) { channel.unsubscribe() }
+    }
 }
 ```
 
-That's how `SqlTaskRepository` is shared across the three "real device" targets without leaking SQLDelight into web builds.
+For M1 we re-fetch on each change rather than diff-applying. It's correct, simple, and fast enough for room sizes we expect. Diff-based updates can come later if we need them.
 
-## Architecture in three layers
+## What's deliberately NOT in M1
 
-```
-                    ┌──────────────────────────────────┐
-   commonMain  →    │  ui/  (Compose screens + VMs)    │  StateFlow + collectAsStateWithLifecycle
-                    └──────────────┬───────────────────┘
-                                   │ reads / mutates
-                                   ▼
-                    ┌──────────────────────────────────┐
-                    │  domain/  (Task, Repository)     │  Pure Kotlin, zero platform deps
-                    └──────────────┬───────────────────┘
-                                   │ implements
-                                   ▼
-   nonWebMain  ┌────────────────────────────────────────┐
-   webMain     │  data/  (SqlTaskRepository,            │
-               │          InMemoryTaskRepository)        │
-               └────────────────┬───────────────────────┘
-                                │ uses
-                                ▼
-   androidMain / iosMain / jvmMain  →  expect/actual DatabaseDriverFactory
-```
+- **Chat / hand raise / Q&A / polls / raffles / trivia / reactions** — staged into M2–M5.
+- **Persistent participant identity** — joining is anonymous; refreshing the app drops your participant row from the host's perspective.
+- **Offline cache** — Supabase is the only source of truth. SQLDelight (which lived in the previous Todo iteration of this repo) is gone. An offline read cache is an M6+ follow-up.
+- **Supabase Auth** — the publishable key is the only credential today. M7 layers auth and tightens RLS.
+- **Hardened RLS** — current policies are permissive (anon can read/write anything). The migration calls this out with a `WARNING` block.
+- **Raffle fairness guarantees** — when M5 lands, the draw should move into a SQL function or Edge Function; until then the host's client picks the winner.
 
-- **`domain/` is dependency-free Kotlin.** No Android Context, no UIKit, no `Settings`, no SQLDelight types — just `Task`, `Priority`, `TaskFilter`, `TaskDraft`, `TaskRepository`. This makes it trivially testable (no mocks, no DI framework required).
-- **`data/` lives one source set higher.** `SqlTaskRepository` only compiles for Android/iOS/JVM (`nonWebMain`). `InMemoryTaskRepository` only compiles for JS/Wasm (`webMain`). Each entry point hands the right one into the `AppContainer`.
-- **`ui/` reads from `domain/`.** Screens hold no business logic; ViewModels expose `StateFlow<UiState>` produced by `combine(repository.observeAll(), settings.filter, query)`.
+## Want the long version?
 
-## How the KMP tools are exercised here
-
-| Pattern | Where to look |
-|---|---|
-| **Shared composables** | `App.kt`, `ui/list`, `ui/edit`, `ui/settings`, `ui/theme` — all in `commonMain`. No per-platform `App` clones. |
-| **`expect class` / `actual class`** | `data/DatabaseDriverFactory` (one expect in `nonWebMain`, three actuals: Android/iOS/JVM) |
-| **`expect fun` / `actual fun`** | `createTaskSharer()` in `webMain`, with JS + Wasm actuals |
-| **Interface + per-platform impl** | `platform/TaskSharer` — five concrete implementations using each platform's native share API |
-| **Custom source set hierarchy** | The `nonWebMain` group, manually wired so Android/iOS/JVM share `SqlTaskRepository` without dragging it into web |
-| **Compose Multiplatform resources** | `composeResources/values/strings.xml` + `values-es/strings.xml`; consumed via `Res.string.*` from the generated `kmptodoapp.composeapp.generated.resources` package |
-| **Reactive data layer** | `Tasks.sq` queries → SQLDelight `Query.asFlow()` → `mapToList` → repository `Flow<List<Task>>` → `combine` in the ViewModel |
-| **One-shot navigation events** | `TaskEditViewModel` exposes a `Channel<TaskEditEffect>` for `Saved`/`Deleted`/`NotFound` — UI state holds form fields only, so cached ViewModels never replay stale "saved" flags |
-| **`androidx.lifecycle` ViewModels in common code** | `TaskListViewModel`, `TaskEditViewModel`, `SettingsViewModel` all extend the multiplatform `ViewModel` |
-| **Multiplatform `kotlin.time`** | Domain uses `kotlin.time.Instant` and `kotlin.time.Clock` (the future-proof stdlib types); kotlinx-datetime supplies only `LocalDateTime` + `TimeZone` for formatting |
-
-## DI-lite via `AppContainer`
-
-There's no Koin / Kodein / Dagger — just a small data class:
-
-```kotlin
-data class AppContainer(
-    val tasks: TaskRepository,
-    val settings: AppSettings,
-    val sharer: TaskSharer,
-)
-```
-
-Each entry point builds its own `AppContainer` with the implementations that fit its target, then hands it to `App(container)`. Composables read it as a parameter. Cheap, explicit, refactor-friendly.
-
-```kotlin
-// Desktop entry point
-val container = AppContainer(
-    tasks = SqlTaskRepository(DatabaseDriverFactory()),
-    settings = AppSettings(PreferencesSettings(Preferences.userRoot().node("com/xergioalex/kmptodoapp"))),
-    sharer = JvmTaskSharer(),
-)
-application { Window(...) { App(container) } }
-```
-
-```kotlin
-// Web entry point
-val container = AppContainer(
-    tasks = InMemoryTaskRepository(),
-    settings = AppSettings(StorageSettings()),
-    sharer = createTaskSharer(),
-)
-ComposeViewport { App(container) }
-```
-
-When the app grows enough to justify a real DI framework, the swap is local to those four entry points.
-
-## Build & run
-
-| Target | Command |
-|---|---|
-| Desktop (with Compose Hot Reload) | `./gradlew :composeApp:run` |
-| Android (debug install) | `./gradlew :composeApp:installDebug` |
-| iOS | open `iosApp/iosApp.xcodeproj` in Xcode → ⌘R |
-| Web (Wasm, recommended) | `./gradlew :composeApp:wasmJsBrowserDevelopmentRun` |
-| Web (JS, fallback) | `./gradlew :composeApp:jsBrowserDevelopmentRun` |
-| All Kotlin compiles | `./gradlew :composeApp:assemble` |
-| JVM tests | `./gradlew :composeApp:jvmTest` |
-
-> Use Java 21 — `export JAVA_HOME="/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home"` on macOS. The bundled Kotlin compiler in Gradle 8.14 doesn't recognize Java 26 yet.
-
-## What's next
-
-Hooks intentionally left for follow-ups:
-
-- **Web persistence**: swap `InMemoryTaskRepository` for SQLDelight's `web-worker-driver` (needs webpack + `sqljs` resource setup).
-- **Local reminders**: `expect/actual` over `AlarmManager` (Android) / `UNUserNotificationCenter` (iOS) / `java.util.Timer` or system tray (Desktop). The `dueAt` field is already in the domain.
-- **Sub-tasks**: extend the schema with a self-referencing `parent_task_id` plus a nested checklist UI.
-- **Drag-to-reorder** on the list, persisting an `order_index`.
-- **Tests** in `commonTest` for `TaskListViewModel` (filter + search) — the logic is pure and trivially exercisable.
-- **Common ViewModel tests** with `kotlinx-coroutines-test`.
-
-None of these need cross-platform plumbing — they're product decisions waiting for a product owner.
+- [Architecture](ARCHITECTURE.md) — source sets, expect/actual, Compose Multiplatform conventions
+- [Technologies](TECHNOLOGIES.md) — full version catalog with rationale per dep
+- [Standards](STANDARDS.md) — Kotlin / Compose conventions, naming, expect/actual rules
+- [Platforms](PLATFORMS.md) — per-platform notes (Android, iOS, Desktop JVM, JS, Wasm)
+- [Security](SECURITY.md) — secrets, RLS, what to tighten before production

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive-icon foreground layer.
+
+  We inset the PTT vertical mark inside the safe area (the inner 72×72 dp
+  square of the 108×108 dp foreground) so launchers that mask the icon
+  to a circle, rounded square, etc. don't crop the wordmark.
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/pereiratechtalks_foreground"
+    android:inset="22%" />

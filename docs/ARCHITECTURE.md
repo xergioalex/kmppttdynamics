@@ -1,6 +1,6 @@
 # Architecture
 
-This document explains the **big picture** of KMPTodoApp so a new contributor (human or agent) can be productive quickly. For day-to-day commands see [Development Commands](DEVELOPMENT_COMMANDS.md). For language-specific rules see [Standards](STANDARDS.md).
+This document explains the **big picture** of KMPPTTDynamics so a new contributor (human or agent) can be productive quickly. For day-to-day commands see [Development Commands](DEVELOPMENT_COMMANDS.md). For language-specific rules see [Standards](STANDARDS.md).
 
 ## High-level model
 
@@ -9,8 +9,12 @@ This document explains the **big picture** of KMPTodoApp so a new contributor (h
                           │  composeApp/commonMain     │
                           │  ────────────────────────  │
                           │  • App.kt   (root @Comp.)  │
-                          │  • Greeting.kt (logic)     │
+                          │  • AppContainer.kt (DI)    │
                           │  • Platform.kt (expect)    │
+                          │  • domain/, supabase/,     │
+                          │    meetups/, participants/ │
+                          │  • ui/{home,create,join,   │
+                          │    room,theme,components}  │
                           │  • composeResources/       │
                           └────────────┬───────────────┘
                                        │ same Kotlin code
@@ -20,7 +24,7 @@ androidMain    iosMain        jvmMain   webMain        jsMain        wasmJsMain
   ↓              ↓              ↓         ↓              ↓              ↓
 MainActivity   MainView-     application  Compose-     (only        (only
 .setContent    Controller    { Window }   Viewport      actual       actual
-  { App() }    { App() }       App()        App()        }              }
+  { App(c) }   { App(c) }    { App(c) }   { App(c) }    }              }
    ↓              ↓              ↓         ↓
 Android APK    ComposeApp    Desktop      Web JS bundle
                 .framework   installer    +
@@ -33,7 +37,7 @@ Every platform mounts the **same** `App()` composable. Platform source sets only
 ## Project structure
 
 ```
-KMPTodoApp/
+KMPPTTDynamics/
 ├── AGENTS.md                          # Single source of truth for AI agents
 ├── CLAUDE.md → AGENTS.md              # Symlink (do not edit directly)
 ├── README.md                          # Human-facing intro
@@ -50,37 +54,46 @@ KMPTodoApp/
 │   ├── build.gradle.kts               # KMP target list, source-set deps, Android config
 │   └── src/
 │       ├── commonMain/
-│       │   ├── kotlin/com/xergioalex/kmptodoapp/
-│       │   │   ├── App.kt             # @Composable App — all UI starts here
-│       │   │   ├── Greeting.kt        # Pure-Kotlin shared logic (uses getPlatform())
-│       │   │   └── Platform.kt        # interface Platform + expect fun getPlatform()
+│       │   ├── kotlin/com/xergioalex/kmppttdynamics/
+│       │   │   ├── App.kt                 # @Composable App(container) — entry composable
+│       │   │   ├── AppContainer.kt        # DI-lite holder (settings + lazy repos)
+│       │   │   ├── JoinCodeGenerator.kt   # 6-char codes excluding 0/O/1/I
+│       │   │   ├── Platform.kt            # expect fun getPlatform()
+│       │   │   ├── domain/                # Meetup, MeetupParticipant, MeetupStatus, ParticipantRole
+│       │   │   ├── supabase/              # SupabaseClientProvider (lazy, BuildKonfig-driven)
+│       │   │   ├── meetups/               # MeetupRepository — REST + realtime channel
+│       │   │   ├── participants/          # ParticipantRepository — REST + realtime channel
+│       │   │   ├── settings/AppSettings   # theme + last display name (multiplatform-settings)
+│       │   │   └── ui/                    # home, create, join, room, theme, components
 │       │   └── composeResources/
-│       │       └── drawable/          # Shared images (compiled into Res object)
-│       ├── commonTest/kotlin/         # Shared kotlin.test tests
+│       │       ├── drawable/              # ptt_logo_vertical.png, ptt_logo_horizontal.png
+│       │       ├── values/strings.xml     # English
+│       │       └── values-es/strings.xml  # Spanish
+│       ├── commonTest/kotlin/             # Shared kotlin.test tests (e.g. JoinCodeGeneratorTest)
 │       │
 │       ├── androidMain/
-│       │   ├── kotlin/com/xergioalex/kmptodoapp/
+│       │   ├── kotlin/com/xergioalex/kmppttdynamics/
 │       │   │   ├── MainActivity.kt    # ComponentActivity → setContent { App() }
 │       │   │   └── Platform.android.kt   # actual fun getPlatform()
 │       │   ├── AndroidManifest.xml    # Single MainActivity, MAIN/LAUNCHER intent filter
 │       │   └── res/                   # Android-only resources (icons, strings)
 │       │
-│       ├── iosMain/kotlin/com/xergioalex/kmptodoapp/
+│       ├── iosMain/kotlin/com/xergioalex/kmppttdynamics/
 │       │   ├── MainViewController.kt  # fun MainViewController() = ComposeUIViewController { App() }
 │       │   └── Platform.ios.kt        # actual fun getPlatform()
 │       │
-│       ├── jvmMain/kotlin/com/xergioalex/kmptodoapp/
+│       ├── jvmMain/kotlin/com/xergioalex/kmppttdynamics/
 │       │   ├── main.kt                # application { Window { App() } }
 │       │   └── Platform.jvm.kt        # actual fun getPlatform()
 │       │
 │       ├── webMain/                   # SHARED web entry (used by both JS and Wasm)
-│       │   ├── kotlin/com/xergioalex/kmptodoapp/main.kt   # ComposeViewport { App() }
+│       │   ├── kotlin/com/xergioalex/kmppttdynamics/main.kt   # ComposeViewport { App() }
 │       │   └── resources/index.html   # Web shell (loads composeApp.js)
 │       │
-│       ├── jsMain/kotlin/com/xergioalex/kmptodoapp/
+│       ├── jsMain/kotlin/com/xergioalex/kmppttdynamics/
 │       │   └── Platform.js.kt         # actual fun getPlatform()
 │       │
-│       └── wasmJsMain/kotlin/com/xergioalex/kmptodoapp/
+│       └── wasmJsMain/kotlin/com/xergioalex/kmppttdynamics/
 │           └── Platform.wasmJs.kt     # actual fun getPlatform()
 │
 ├── iosApp/                            # Xcode project — consumes the ComposeApp framework
@@ -163,7 +176,7 @@ actual fun getPlatform(): Platform = IOSPlatform()
 
 ### Resources
 
-Compose Multiplatform compiles `composeApp/src/commonMain/composeResources/` into a generated `kmptodoapp.composeapp.generated.resources.Res` object. Subfolder conventions:
+Compose Multiplatform compiles `composeApp/src/commonMain/composeResources/` into a generated `kmppttdynamics.composeapp.generated.resources.Res` object. Subfolder conventions:
 
 - `drawable/` — vector and raster images, accessed via `Res.drawable.<name>`
 - `values/strings.xml` — base locale strings, accessed via `Res.string.<name>` (qualifiers like `values-es/` add localized variants)
@@ -199,7 +212,9 @@ struct ComposeView: UIViewControllerRepresentable {
 - Targets enabled: `androidTarget()`, `iosArm64()`, `iosSimulatorArm64()`, `jvm()`, `js { browser() }`, `wasmJs { browser() }` — all with executables
 - iOS framework name `ComposeApp`, `isStatic = true`
 - Android: `compileSdk 36`, `minSdk 24`, `targetSdk 36`, Java 11; release build `isMinifyEnabled = false` (flip on for production — see [Performance](PERFORMANCE.md))
-- Desktop: target formats `Dmg`, `Msi`, `Deb`; main class `com.xergioalex.kmptodoapp.MainKt`
+- Desktop: target formats `Dmg`, `Msi`, `Deb`; main class `com.xergioalex.kmppttdynamics.MainKt`
+- BuildKonfig (`com.codingfeline.buildkonfig`): generates a `BuildConfig` Kotlin object at `com.xergioalex.kmppttdynamics.config.BuildConfig` with `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` read from `.env` at the repo root (or env vars in CI). `exposeObjectWithName` is intentionally NOT set — the resulting `@JsExport` annotation breaks Kotlin/Wasm compilation on standalone objects.
+- ktor 3.0.3 engines per platform: CIO (Android + JVM), Darwin (iOS), JS (JS + Wasm). supabase-kt depends on these for transport.
 
 `gradle.properties`:
 
@@ -212,10 +227,37 @@ struct ComposeView: UIViewControllerRepresentable {
 - `enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")` — reference modules as `projects.composeApp` instead of `project(":composeApp")`
 - Foojay toolchain resolver for automatic JDK provisioning
 
+## Realtime data flow
+
+Every screen that watches live data follows the same shape:
+
+```kotlin
+fun observe(meetupId: String): Flow<List<X>> = flow {
+    val channel = supabase.channel("x_$meetupId")
+    val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+        table = "x"
+        filter("meetup_id", FilterOperator.EQ, meetupId)
+    }
+    channel.subscribe()
+    try {
+        emit(fetch(meetupId))                        // initial REST snapshot
+        changes.collect { emit(fetch(meetupId)) }    // refresh on every change
+    } finally {
+        withContext(NonCancellable) { channel.unsubscribe() }
+    }
+}
+```
+
+Reference implementations: `MeetupRepository.observeAll()`, `ParticipantRepository.observe(meetupId)`. Match this pattern when adding chat / hand-raise / Q&A / polls / raffles in M2–M5.
+
+The `try/finally` with `NonCancellable` is mandatory — without it, a cancelled flow leaks the Realtime subscription. ViewModels collect these flows via `viewModelScope.launch` so cancellation flows naturally on screen exit.
+
 ## Mental model summary
 
 1. **Shared by default.** New code goes in `commonMain`; you only descend into a platform source set when forced.
-2. **One UI tree.** The same `App()` composable runs on all five targets — there is no platform-specific UI graph.
+2. **One UI tree.** The same `App(container)` composable runs on all five targets — there is no platform-specific UI graph.
 3. **Single version catalog.** All dependency versions live in `gradle/libs.versions.toml`; never inline a literal version string.
 4. **`expect`/`actual` is the only platform escape hatch.** If the abstraction is large or one-off, find a multiplatform library or keep it inside the platform's entry point.
 5. **The iOS framework name is load-bearing.** `ComposeApp` is referenced from Swift code in `iosApp/`; renaming requires updating both sides.
+6. **Supabase is the source of truth.** No offline cache (yet). Every realtime feed in `commonMain` is one channel + REST refresh per change, scoped by `meetup_id`.
+7. **`.env` drives the client config.** BuildKonfig reads `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` at build time — those are the only Supabase values that may enter the app bundle.

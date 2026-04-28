@@ -46,7 +46,7 @@ buildTypes {
 
 ```proguard
 # Keep Compose Multiplatform / Kotlin/Native interop happy
--keep class com.xergioalex.kmptodoapp.** { *; }
+-keep class com.xergioalex.kmppttdynamics.** { *; }
 -dontwarn org.jetbrains.compose.**
 
 # Add app-specific keep rules as you adopt libraries (Ktor, kotlinx-serialization, etc.)
@@ -55,17 +55,17 @@ buildTypes {
 3. **Configure signing.** Create a release keystore (one-time):
 
 ```bash
-keytool -genkey -v -keystore release.keystore -alias kmptodoapp -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkey -v -keystore release.keystore -alias kmppttdynamics -keyalg RSA -keysize 2048 -validity 10000
 ```
 
 Store the keystore **outside the repo** and reference it via environment variables or `~/.gradle/gradle.properties`:
 
 ```properties
 # ~/.gradle/gradle.properties (NOT checked in)
-KMPTODOAPP_KEYSTORE_FILE=/Users/you/keys/kmptodoapp-release.keystore
-KMPTODOAPP_KEYSTORE_PASSWORD=...
-KMPTODOAPP_KEY_ALIAS=kmptodoapp
-KMPTODOAPP_KEY_PASSWORD=...
+KMPPTTDYNAMICS_KEYSTORE_FILE=/Users/you/keys/kmppttdynamics-release.keystore
+KMPPTTDYNAMICS_KEYSTORE_PASSWORD=...
+KMPPTTDYNAMICS_KEY_ALIAS=kmppttdynamics
+KMPPTTDYNAMICS_KEY_PASSWORD=...
 ```
 
 ```kotlin
@@ -73,10 +73,10 @@ KMPTODOAPP_KEY_PASSWORD=...
 android {
     signingConfigs {
         create("release") {
-            storeFile = file(providers.gradleProperty("KMPTODOAPP_KEYSTORE_FILE").get())
-            storePassword = providers.gradleProperty("KMPTODOAPP_KEYSTORE_PASSWORD").get()
-            keyAlias = providers.gradleProperty("KMPTODOAPP_KEY_ALIAS").get()
-            keyPassword = providers.gradleProperty("KMPTODOAPP_KEY_PASSWORD").get()
+            storeFile = file(providers.gradleProperty("KMPPTTDYNAMICS_KEYSTORE_FILE").get())
+            storePassword = providers.gradleProperty("KMPPTTDYNAMICS_KEYSTORE_PASSWORD").get()
+            keyAlias = providers.gradleProperty("KMPPTTDYNAMICS_KEY_ALIAS").get()
+            keyPassword = providers.gradleProperty("KMPPTTDYNAMICS_KEY_PASSWORD").get()
         }
     }
     buildTypes {
@@ -160,7 +160,7 @@ xcodebuild -exportArchive \
 
 ```bash
 ./gradlew :composeApp:packageDistributionForCurrentOS
-# Output (macOS): composeApp/build/compose/binaries/main/dmg/com.xergioalex.kmptodoapp-1.0.0.dmg
+# Output (macOS): composeApp/build/compose/binaries/main/dmg/com.xergioalex.kmppttdynamics-1.0.0.dmg
 ```
 
 `packageReleaseDistributionForCurrentOS` is the optimized variant.

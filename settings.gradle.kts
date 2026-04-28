@@ -1,8 +1,4 @@
-// FORK-RENAME: change rootProject.name when forking. The Compose Multiplatform
-// resources generator derives its package from this name (lowercased), so
-// changing it requires updating every `import <name>.composeapp.generated.resources.*`.
-// See docs/FORK_CUSTOMIZATION.md.
-rootProject.name = "KMPTodoApp"
+rootProject.name = "KMPPTTDynamics"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

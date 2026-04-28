@@ -1,6 +1,6 @@
 # Standards
 
-Canonical coding rules for KMPTodoApp. Every contributor (human or agent) must follow these. The IDE's Kotlin formatter (`kotlin.code.style=official`) handles most details — these standards cover the things the formatter cannot decide for you.
+Canonical coding rules for KMPPTTDynamics. Every contributor (human or agent) must follow these. The IDE's Kotlin formatter (`kotlin.code.style=official`) handles most details — these standards cover the things the formatter cannot decide for you.
 
 ## Language
 
@@ -11,30 +11,29 @@ Canonical coding rules for KMPTodoApp. Every contributor (human or agent) must f
 
 | Element | Convention | Example |
 |---|---|---|
-| Package | `lowercase.dotted` | `com.xergioalex.kmptodoapp.tasks` |
-| File | Matches main declaration, `PascalCase.kt` | `TaskListViewModel.kt` |
+| Package | `lowercase.dotted` | `com.xergioalex.kmppttdynamics.meetups` |
+| File | Matches main declaration, `PascalCase.kt` | `MeetupRepository.kt` |
 | Platform `actual` file | `Foo.<platform>.kt` | `Platform.android.kt` |
-| Class / interface / object | `PascalCase` | `TaskRepository` |
-| Composable function | `PascalCase` (treat like a class) | `TaskList()` |
+| Class / interface / object | `PascalCase` | `MeetupRepository` |
+| Composable function | `PascalCase` (treat like a class) | `RoomScreen()` |
 | Top-level function (non-composable) | `camelCase` | `formatRelativeTime()` |
 | Constant (compile-time) | `SCREAMING_SNAKE_CASE` | `const val MAX_TITLE_LENGTH = 120` |
-| Test method | `camelCase` describing behavior, no backticks unless the test runner is JVM-only | `returnsEmptyListWhenNoTasks` |
+| Test method | `camelCase` describing behavior, no backticks unless the test runner is JVM-only | `joinCodeIsSixCharsAlphanumeric` |
 
 When the test target is JVM/Android only, backtick-style names are fine: `` `returns empty list when no tasks` ``. Avoid them in `commonTest` because some Kotlin/Native and Wasm runners reject backticked identifiers.
 
 ## Package layout
 
-Single root package: `com.xergioalex.kmptodoapp`. Subpackages by **feature**, not by layer:
+Single root package: `com.xergioalex.kmppttdynamics`. Subpackages by **feature**, not by layer:
 
 ```
-com.xergioalex.kmptodoapp
-├── tasks/                 # Task list feature
-│   ├── TaskListScreen.kt
-│   ├── TaskListViewModel.kt
-│   ├── TaskRepository.kt
-│   └── Task.kt
-├── settings/              # Settings feature
-└── core/                  # Cross-cutting building blocks (theme, navigation, util)
+com.xergioalex.kmppttdynamics
+├── domain/                # Cross-cutting models (Meetup, MeetupParticipant, …)
+├── supabase/              # SupabaseClientProvider
+├── meetups/               # MeetupRepository
+├── participants/          # ParticipantRepository
+├── settings/              # AppSettings (theme, last display name)
+└── ui/                    # home, create, join, room, theme, components
 ```
 
 Avoid generic top-level buckets like `models/`, `utils/`, `viewmodels/` — they rot fast.
@@ -49,22 +48,22 @@ Avoid generic top-level buckets like `models/`, `utils/`, `viewmodels/` — they
 6. **Never declare `actual` in `commonMain`.** That's a Kotlin compiler error and confuses tools.
 
 ```kotlin
-// commonMain/storage/Settings.kt
-expect class Settings {
-    fun getString(key: String): String?
-    fun setString(key: String, value: String)
+// commonMain/Platform.kt
+interface Platform {
+    val name: String
 }
+expect fun getPlatform(): Platform
 ```
 
 ```kotlin
-// androidMain/storage/Settings.android.kt
-actual class Settings(private val prefs: SharedPreferences) {
-    actual fun getString(key: String): String? = prefs.getString(key, null)
-    actual fun setString(key: String, value: String) {
-        prefs.edit().putString(key, value).apply()
-    }
+// androidMain/Platform.android.kt
+class AndroidPlatform : Platform {
+    override val name: String = "Android ${android.os.Build.VERSION.SDK_INT}"
 }
+actual fun getPlatform(): Platform = AndroidPlatform()
 ```
+
+(For settings persistence we use the `multiplatform-settings` library, which already ships per-platform `actual`s — exactly the kind of off-the-shelf abstraction `expect`/`actual` should defer to.)
 
 ## Composables
 
@@ -77,9 +76,9 @@ actual class Settings(private val prefs: SharedPreferences) {
 
 ```kotlin
 @Composable
-fun TaskRow(
-    task: Task,
-    onToggle: (Task) -> Unit,
+fun ParticipantRow(
+    participant: MeetupParticipant,
+    isMe: Boolean,
     modifier: Modifier = Modifier,
 ) {
     // ... no fetching, no IO, no side effects beyond LaunchedEffect when needed
@@ -108,7 +107,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import com.xergioalex.kmptodoapp.core.theme.AppTheme
+import com.xergioalex.kmppttdynamics.core.theme.AppTheme
 ```
 
 If your IDE reformats imports differently, your IDE has the wrong style — set "Code Style: Kotlin → Set from… → Kotlin style guide".
@@ -153,14 +152,24 @@ If your IDE reformats imports differently, your IDE has the wrong style — set 
 
 ## Logging
 
-The starter doesn't ship a multiplatform logger. Use `println` while bootstrapping. Once you adopt a logger (Napier, Kermit), update [Technologies](TECHNOLOGIES.md) and replace `println` calls in one PR.
+There's no multiplatform logger wired in. Use `println` while bootstrapping. Once you adopt a logger (Napier, Kermit), update [Technologies](TECHNOLOGIES.md) and replace `println` calls in one PR.
+
+## Realtime subscriptions
+
+When adding a new live feed against a Supabase table:
+
+1. Subscribe to `supabase_realtime` for that table, **always filtered by `meetup_id`** so two concurrent rooms don't cross-contaminate.
+2. Wrap the subscription in `try { … } finally { withContext(NonCancellable) { channel.unsubscribe() } }` so cancellations don't leak channels.
+3. For the simplest correct implementation, re-fetch via REST on every change instead of diff-applying — it's cheap at room sizes we expect, and keeps state derivation linear.
+
+Reference implementations: `MeetupRepository.observeAll()`, `ParticipantRepository.observe(meetupId)`. Both follow [Architecture → Realtime data flow](ARCHITECTURE.md).
 
 ## Tests
 
 See [Testing Guide](TESTING_GUIDE.md). Standards summary:
 
 - Tests in `commonTest` use `kotlin.test` only
-- Test class name = production class name + `Test` (`TaskRepository` → `TaskRepositoryTest`)
+- Test class name = production class name + `Test` (`MeetupRepository` → `MeetupRepositoryTest`)
 - One behavior per test method
 - Arrange / Act / Assert structure with blank lines separating sections
 

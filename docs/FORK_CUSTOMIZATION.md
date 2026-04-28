@@ -1,21 +1,25 @@
 # Fork Customization
 
-Step-by-step rebrand of KMPTodoApp into a new product. This is the first thing you should do after cloning. Every step is mechanical — none of it requires creative judgment.
+Step-by-step rebrand of KMPPTTDynamics if you want to use it as the foundation for another community's meetup-dynamics app (or any other product). Every step is mechanical — none of it requires creative judgment.
+
+> The example values below use `Acme Tasks` purely as an illustrative fork target; pick anything that matches your product.
 
 The placeholders to replace, in summary:
 
 | Placeholder | Currently | Examples of new value |
 |---|---|---|
-| Project name | `KMPTodoApp` | `MyApp`, `Acme Tasks` |
-| Display name (user-visible) | `KMPTodoApp` | `My App`, `Acme Tasks` |
-| Package | `com.xergioalex.kmptodoapp` | `com.acme.tasks` |
-| Application id (Android) | `com.xergioalex.kmptodoapp` | `com.acme.tasks` |
-| Namespace (Android) | `com.xergioalex.kmptodoapp` | `com.acme.tasks` |
-| Bundle id (iOS) | (Xcode default) | `com.acme.tasks` |
-| Desktop package | `com.xergioalex.kmptodoapp` | `com.acme.tasks` |
+| Project name (Gradle root) | `KMPPTTDynamics` | `MyApp`, `Acme Tasks` |
+| Display name (user-visible) | `PTT Dynamics` | `My App`, `Acme Tasks` |
+| Package | `com.xergioalex.kmppttdynamics` | `com.acme.tasks` |
+| Application id (Android) | `com.xergioalex.kmppttdynamics` | `com.acme.tasks` |
+| Namespace (Android) | `com.xergioalex.kmppttdynamics` | `com.acme.tasks` |
+| Bundle id (iOS) | `com.xergioalex.kmppttdynamics` | `com.acme.tasks` |
+| Desktop package | `PTTDynamics` | `AcmeTasks` |
+| Desktop main class | `com.xergioalex.kmppttdynamics.MainKt` | `com.acme.tasks.MainKt` |
 | iOS framework name | `ComposeApp` | usually keep, optional rename |
-| Kotlin module name | `KMPTodoApp` (`rootProject.name`) | matches project name |
-| Generated resources package | `kmptodoapp.composeapp.generated.resources` | `tasks.composeapp.generated.resources` |
+| Kotlin module name | `KMPPTTDynamics` (`rootProject.name`) | matches project name |
+| Generated resources package | `kmppttdynamics.composeapp.generated.resources` | `tasks.composeapp.generated.resources` |
+| Supabase project | (configured in `.env`) | your own Supabase project |
 
 ## Step 1 — Project name
 
@@ -63,18 +67,18 @@ compose.desktop {
 
 ## Step 4 — Rename Kotlin packages
 
-The package `com.xergioalex.kmptodoapp` appears in every source set. Rename in this order:
+The package `com.xergioalex.kmppttdynamics` appears in every source set. Rename in this order:
 
-1. **In your IDE:** Right-click the package in `commonMain/kotlin/com/xergioalex/kmptodoapp/` → Refactor → Rename → `com.acme.tasks`. Repeat for each source set (`androidMain`, `iosMain`, `jvmMain`, `jsMain`, `wasmJsMain`, `webMain`, `commonTest`).
+1. **In your IDE:** Right-click the package in `commonMain/kotlin/com/xergioalex/kmppttdynamics/` → Refactor → Rename → `com.acme.tasks`. Repeat for each source set (`androidMain`, `iosMain`, `jvmMain`, `jsMain`, `wasmJsMain`, `webMain`, `commonTest`).
 2. **Or by hand:** move the directories, then update every `package` line and `import` line.
 
 ```bash
 # Rough sketch — adjust to your shell
-find composeApp/src -type d -name kmptodoapp
+find composeApp/src -type d -name kmppttdynamics
 # Move each directory:
-mv composeApp/src/commonMain/kotlin/com/xergioalex/kmptodoapp composeApp/src/commonMain/kotlin/com/acme/tasks
+mv composeApp/src/commonMain/kotlin/com/xergioalex/kmppttdynamics composeApp/src/commonMain/kotlin/com/acme/tasks
 # Repeat for every source set, then sweep the source files:
-grep -rln "com.xergioalex.kmptodoapp" composeApp/src | xargs sed -i '' 's/com\.xergioalex\.kmptodoapp/com.acme.tasks/g'
+grep -rln "com.xergioalex.kmppttdynamics" composeApp/src | xargs sed -i '' 's/com\.xergioalex\.kmppttdynamics/com.acme.tasks/g'
 ```
 
 The IDE rename is safer — it updates references atomically.
@@ -102,10 +106,10 @@ import myapp.composeapp.generated.resources.Res
 import myapp.composeapp.generated.resources.app_name
 ```
 
-After step 1, run a clean build and update every import that referenced `kmptodoapp.composeapp.generated.resources.*`:
+After step 1, run a clean build and update every import that referenced `kmppttdynamics.composeapp.generated.resources.*`:
 
 ```bash
-grep -rln "kmptodoapp.composeapp.generated.resources" composeApp/src
+grep -rln "kmppttdynamics.composeapp.generated.resources" composeApp/src
 ```
 
 If you'd rather pick the package explicitly (recommended for stability), set:
@@ -185,10 +189,10 @@ Replace the loading-spinner SVG with your own loader if desired. If you'll host 
 
 - Update [`README.md`](../README.md) with the new product name, purpose, and any product-specific run notes
 - Update [`AGENTS.md`](../AGENTS.md) Project Overview section
-- Search docs for `KMPTodoApp`, `kmptodoapp`, `xergioalex`, `com.xergioalex.kmptodoapp`:
+- Search docs for `KMPPTTDynamics`, `kmppttdynamics`, `xergioalex`, `com.xergioalex.kmppttdynamics`:
 
 ```bash
-grep -rln "KMPTodoApp\|kmptodoapp\|xergioalex" --include="*.md" --include="*.kts" --include="*.kt" --include="*.xml" --include="*.html"
+grep -rln "KMPPTTDynamics\|kmppttdynamics\|xergioalex" --include="*.md" --include="*.kts" --include="*.kt" --include="*.xml" --include="*.html"
 ```
 
 Replace with your project's identifiers.
@@ -209,7 +213,7 @@ If you want a clean history:
 rm -rf .git
 git init
 git add .
-git commit -m "chore: bootstrap from KMPTodoApp starter"
+git commit -m "chore: bootstrap from KMPPTTDynamics starter"
 ```
 
 ## Step 13 — License and ownership
@@ -262,7 +266,7 @@ git commit -m "feat: rebrand starter to Acme Tasks"
 ## When something goes wrong
 
 - **`Unresolved reference: Res`** — clean build (`./gradlew clean`) and verify the generated package path matches the `import` statements
-- **`Class not found: com.xergioalex.kmptodoapp.MainKt`** — `mainClass` in `compose.desktop.application` doesn't match the Kotlin package
+- **`Class not found: com.xergioalex.kmppttdynamics.MainKt`** — `mainClass` in `compose.desktop.application` doesn't match the Kotlin package
 - **iOS build fails with `No such module 'ComposeApp'`** — re-link the framework: `./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64`, then rebuild Xcode
 - **Android can't find the launcher** — `MainActivity` activity name in `AndroidManifest.xml` is relative (`.MainActivity`) so it inherits the namespace; verify `namespace` in `build.gradle.kts` is correct
 

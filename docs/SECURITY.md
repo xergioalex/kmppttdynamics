@@ -1,6 +1,50 @@
 # Security
 
-Baseline security guidance for a Kotlin Multiplatform / Compose Multiplatform app. The starter is unconfigured for production — this document is the checklist of what you must add **before** shipping a real product.
+Baseline security guidance for KMPPTTDynamics. The MVP is configured for community demos, not for production — this document is the checklist of what you must add **before** opening it up to public meetups.
+
+## Supabase trust boundaries (read this first)
+
+This app uses Supabase for everything: Postgres, Realtime, and (later) Auth. The `.env` file at the repo root carries credentials with **two distinct trust levels** that must never mix.
+
+### What may ship inside the client
+
+Only these two values flow into the app via BuildKonfig (they're embedded in every release artifact):
+
+| Variable | Purpose | Why it's safe |
+|---|---|---|
+| `SUPABASE_URL` | Project base URL — `https://<ref>.supabase.co` | Public by design; not the `/rest/v1/` endpoint |
+| `SUPABASE_PUBLISHABLE_KEY` | Anon-tier public key | Gated by Row Level Security |
+
+### What must never enter the client
+
+These are CLI / admin / backend-only. Do **not** read them from `commonMain`, app resources, BuildKonfig, or any code that lands in a release artifact:
+
+| Variable | Risk if leaked |
+|---|---|
+| `SUPABASE_SECRET_KEY` (service-role) | Bypasses RLS — full read/write/delete on every table |
+| `SUPABASE_ACCESS_TOKEN` | Personal account token — manages all your projects |
+| `SUPABASE_DB_PASSWORD` | Direct Postgres credential |
+| `SUPABASE_DB_URL` | Contains `DB_PASSWORD` inline |
+
+These values are read only by `scripts/supabase_apply.sh` and the Supabase CLI on developer machines and trusted CI runners.
+
+### Row Level Security
+
+The `supabase/migrations/001_init.sql` ships with **permissive** RLS — anyone with the publishable key can read or write any row in any table. That's appropriate for an internal demo, **not** for public deployment. Before going live:
+
+1. Replace the catch-all `for select using (true)` policies with policies that derive identity from `auth.uid()` (requires Supabase Auth).
+2. Make host-only operations (`meetups.status` updates, `polls.create`, `raffles.draw`) host-only at the policy level — UI-side enforcement isn't enough.
+3. Move raffle draws into a `SECURITY DEFINER` SQL function or an Edge Function so the host can't re-roll until they get a winner they like.
+4. Rate-limit chat / question inserts (Supabase Edge Functions or a database trigger).
+
+The migration calls these out with `WARNING:` comments next to the relevant blocks.
+
+### Realtime channels and security
+
+Adding a table to the `supabase_realtime` publication does **not** bypass RLS — clients only receive change events for rows they could `select`. But:
+
+- Once a row is published, every connected client subscribed to that table gets the event. Don't put PII in `chat_messages.message` or `activity_events.payload` unless you want every participant to see it.
+- Channel names are not authentication. Don't assume `meetup:<id>` is private — anyone with the publishable key can subscribe.
 
 ## Principles
 
@@ -26,7 +70,7 @@ Baseline security guidance for a Kotlin Multiplatform / Compose Multiplatform ap
 
 ```properties
 # ~/.gradle/gradle.properties (NOT in repo)
-KMPTODOAPP_API_KEY=...
+KMPPTTDYNAMICS_API_KEY=...
 ```
 
 ```kotlin
@@ -36,7 +80,7 @@ android {
         buildConfigField(
             "String",
             "API_KEY",
-            "\"${providers.gradleProperty("KMPTODOAPP_API_KEY").getOrElse("")}\""
+            "\"${providers.gradleProperty("KMPPTTDYNAMICS_API_KEY").getOrElse("")}\""
         )
     }
 }
@@ -45,7 +89,7 @@ android {
 **Option B — Environment variables (CI):**
 
 ```kotlin
-val apiKey = System.getenv("KMPTODOAPP_API_KEY") ?: ""
+val apiKey = System.getenv("KMPPTTDYNAMICS_API_KEY") ?: ""
 ```
 
 **Option C — Compose Multiplatform resources (for non-secret config only):** put values in `composeResources/files/config.json` and read at runtime. Don't put real secrets there — they ship in the app bundle and can be extracted.

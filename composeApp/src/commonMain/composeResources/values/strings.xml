@@ -1,48 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_title">KMP Todo App</string>
+    <string name="app_title">PTT Dynamics</string>
+    <string name="app_tagline">Pereira Tech Talks · live meetup dynamics</string>
 
-    <string name="filter_all">All</string>
-    <string name="filter_active">Active</string>
-    <string name="filter_done">Done</string>
+    <!-- Home -->
+    <string name="home_live_meetups">Live meetups</string>
+    <string name="home_past_meetups">Past meetups</string>
+    <string name="home_no_live">No meetups are live right now</string>
+    <string name="home_no_past">No past meetups yet</string>
+    <string name="home_create">Create meetup</string>
+    <string name="home_join_with_code">Join with code</string>
+    <string name="home_join_code_hint">Enter join code</string>
+    <string name="home_loading">Loading meetups…</string>
 
-    <string name="search_placeholder">Search tasks…</string>
-    <string name="empty_no_tasks">No tasks yet</string>
-    <string name="empty_no_results">No tasks match your filter</string>
+    <!-- Create -->
+    <string name="create_title">New meetup</string>
+    <string name="create_field_title">Title</string>
+    <string name="create_field_description">Description</string>
+    <string name="create_field_join_code">Join code</string>
+    <string name="create_field_join_code_helper">Auto-generated. Edit if you want a custom code.</string>
+    <string name="create_action_create">Create meetup</string>
 
-    <string name="action_add">Add task</string>
-    <string name="action_edit">Edit</string>
-    <string name="action_delete">Delete</string>
-    <string name="action_share">Share</string>
-    <string name="action_save">Save</string>
-    <string name="action_cancel">Cancel</string>
+    <!-- Join -->
+    <string name="join_title">Join meetup</string>
+    <string name="join_display_name">Your display name</string>
+    <string name="join_role_host">Join as host</string>
+    <string name="join_action_join">Join</string>
+    <string name="join_meetup_not_found">No meetup found for that code.</string>
+
+    <!-- Room -->
+    <string name="room_status_draft">Draft</string>
+    <string name="room_status_live">Live</string>
+    <string name="room_status_paused">Paused</string>
+    <string name="room_status_ended">Ended</string>
+    <string name="room_status_archived">Archived</string>
+    <string name="room_join_code">Code: %1$s</string>
+    <string name="room_participants">Participants (%1$d)</string>
+    <string name="room_online">%1$d online</string>
+    <string name="room_no_participants">No one has joined yet.</string>
+    <string name="room_leave">Leave room</string>
+    <string name="room_host_actions">Host controls</string>
+    <string name="room_host_start">Start meetup</string>
+    <string name="room_host_pause">Pause</string>
+    <string name="room_host_resume">Resume</string>
+    <string name="room_host_end">End meetup</string>
+
+    <!-- Common -->
     <string name="action_back">Back</string>
-    <string name="action_settings">Settings</string>
-    <string name="action_clear_completed">Clear completed</string>
-
-    <string name="field_title">Title</string>
-    <string name="field_notes">Notes</string>
-    <string name="field_category">Category</string>
-    <string name="field_priority">Priority</string>
-    <string name="field_due_at">Due date</string>
-    <string name="field_done">Done</string>
-    <string name="field_no_due">No due date</string>
-
-    <string name="priority_low">Low</string>
-    <string name="priority_medium">Medium</string>
-    <string name="priority_high">High</string>
-
-    <string name="task_count_active">%1$d active · %2$d done</string>
-    <string name="task_share_template">%1$s\n\n%2$s</string>
-
-    <string name="settings_theme">Theme</string>
-    <string name="settings_theme_system">Follow system</string>
-    <string name="settings_theme_light">Light</string>
-    <string name="settings_theme_dark">Dark</string>
-    <string name="settings_language">Language</string>
-    <string name="settings_language_system">System default</string>
-    <string name="settings_language_english">English</string>
-    <string name="settings_language_spanish">Spanish</string>
-
-    <string name="empty_detail">Select a task or create a new one</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_retry">Retry</string>
+    <string name="error_generic">Something went wrong.</string>
+    <string name="error_supabase_not_configured">Supabase is not configured. Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY in .env and rebuild.</string>
+    <string name="empty_detail">Pick a meetup or create a new one</string>
 </resources>

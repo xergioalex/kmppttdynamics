@@ -2,6 +2,12 @@
 
 Reference for every Gradle task you'll run during day-to-day development. The Gradle wrapper (`./gradlew`) is the canonical entry point — never call a system-installed `gradle`. Run from the repo root.
 
+> **Java 21.** Build with JDK 21. Gradle 8.14 doesn't recognise newer JDKs.
+> ```bash
+> export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
+> ```
+> When you run from Android Studio's Run config, the IDE supplies its own JDK and you don't need this export.
+
 ## Inner-loop favorites
 
 | Goal | Command | Notes |
@@ -12,6 +18,7 @@ Reference for every Gradle task you'll run during day-to-day development. The Gr
 | Run on iOS | Open `iosApp/iosApp.xcodeproj` in Xcode and ⌘R | Or use the IDE's KMP run config |
 | Run in browser (Wasm) | `./gradlew :composeApp:wasmJsBrowserDevelopmentRun` | Auto-opens `http://localhost:8080` |
 | Type-check everything | `./gradlew :composeApp:assemble` | Compiles all targets without packaging extras |
+| Apply DB migrations | `./scripts/supabase_apply.sh` | Reads `.env` for `SUPABASE_DB_URL` (or builds it from `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD`); runs every file in `supabase/migrations/` via `psql` |
 
 ## Running the app
 
@@ -23,7 +30,7 @@ Reference for every Gradle task you'll run during day-to-day development. The Gr
 ./gradlew :composeApp:packageReleaseDistributionForCurrentOS  # Same, optimized
 ```
 
-The desktop main class is `com.xergioalex.kmptodoapp.MainKt` — set in `composeApp/build.gradle.kts`.
+The desktop main class is `com.xergioalex.kmppttdynamics.MainKt` — set in `composeApp/build.gradle.kts`.
 
 ### Android
 
@@ -33,7 +40,7 @@ The desktop main class is `com.xergioalex.kmptodoapp.MainKt` — set in `compose
 ./gradlew :composeApp:assembleRelease       # Build release APK (currently unsigned, no R8)
 ./gradlew :composeApp:bundleRelease         # Build release AAB for Play Store
 ./gradlew :composeApp:lint                  # Android lint (when configured)
-adb logcat | grep KMPTodoApp                  # Tail logs
+adb logcat | grep KMPPTTDynamics                  # Tail logs
 ```
 
 The debug APK lands at `composeApp/build/outputs/apk/debug/composeApp-debug.apk`.
@@ -84,9 +91,9 @@ Or use the **IDE's KMP run config** (Android Studio with the KMP plugin, or Flee
 ### Single test
 
 ```bash
-./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmptodoapp.ComposeAppCommonTest.example"
-./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmptodoapp.ComposeAppCommonTest"   # All in class
-./gradlew :composeApp:jvmTest --tests "*Greeting*"                                     # Pattern match
+./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmppttdynamics.ComposeAppCommonTest.joinCodeIsSixCharsAlphanumeric"
+./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmppttdynamics.ComposeAppCommonTest"   # All in class
+./gradlew :composeApp:jvmTest --tests "*JoinCode*"                                     # Pattern match
 ```
 
 The `--tests` filter uses the JUnit pattern syntax. It works on `jvmTest` and `testDebugUnitTest` reliably; for Native and Wasm test targets the pattern support is more limited — run the whole class.

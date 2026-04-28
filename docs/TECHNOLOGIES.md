@@ -1,6 +1,6 @@
 # Technologies
 
-A complete inventory of every tool, plugin, and library shipped with this starter, with **versions, role, and where it's wired**. Every version is pinned in [`gradle/libs.versions.toml`](../gradle/libs.versions.toml) — change versions there, not in `build.gradle.kts`.
+A complete inventory of every tool, plugin, and library used by KMPPTTDynamics, with **versions, role, and where it's wired**. Every version is pinned in [`gradle/libs.versions.toml`](../gradle/libs.versions.toml) — change versions there, not in `build.gradle.kts`.
 
 ## Languages and runtimes
 
@@ -24,6 +24,8 @@ All plugins are declared in `gradle/libs.versions.toml` and applied per module v
 | `com.android.library` | 8.11.2 | (Declared, not yet applied — useful when extracting submodules) |
 | `org.jetbrains.compose` | 1.10.3 | Compose Multiplatform — runtime, foundation, material3, ui, resources |
 | `org.jetbrains.kotlin.plugin.compose` | 2.3.20 | Compose Compiler plugin — version-matched to Kotlin |
+| `org.jetbrains.kotlin.plugin.serialization` | 2.3.20 | Generates serializers for `@Serializable` classes (used by the Postgrest payloads) |
+| `com.codingfeline.buildkonfig` | 0.17.1 | Generates a multiplatform `BuildConfig` Kotlin object from `.env` values, available in `commonMain` |
 | `org.jetbrains.compose.hot-reload` | 1.0.0 | Hot reload of composables on Desktop JVM |
 | `org.gradle.toolchains.foojay-resolver-convention` | 1.0.0 | Auto-provisions a matching JDK for the toolchain |
 
@@ -56,9 +58,23 @@ These are the **multiplatform** ports published by JetBrains under `org.jetbrain
 
 | Library | Version | Where | Role |
 |---|---|---|---|
+| `kotlinx-coroutines-core` | 1.10.2 | `commonMain` | Structured concurrency — `Flow`, `viewModelScope.launch`, `NonCancellable` for safe channel cleanup |
 | `kotlinx-coroutines-swing` | 1.10.2 | `jvmMain` | Provides `Dispatchers.Main` backed by Swing's EDT for the Desktop window |
 
-`commonMain` doesn't declare a coroutines dependency directly — Compose pulls it in transitively. Add it explicitly to the catalog if you start using `kotlinx.coroutines` APIs from shared code.
+## Supabase + Ktor
+
+| Library | Version | Where | Role |
+|---|---|---|---|
+| `io.github.jan-tennert.supabase:postgrest-kt` | 3.6.0 | `commonMain` | Type-safe REST client for Supabase Postgres |
+| `io.github.jan-tennert.supabase:realtime-kt` | 3.6.0 | `commonMain` | Realtime channel + `postgresChangeFlow` subscription |
+| `io.ktor:ktor-client-core` | 3.0.3 | `commonMain` | HTTP transport interface used by supabase-kt |
+| `io.ktor:ktor-client-cio` | 3.0.3 | `androidMain` + `jvmMain` | CIO engine for Android / Desktop |
+| `io.ktor:ktor-client-darwin` | 3.0.3 | `iosMain` | Native iOS engine |
+| `io.ktor:ktor-client-js` | 3.0.3 | `jsMain` + `wasmJsMain` | Browser engine for both web targets |
+| `org.jetbrains.kotlinx:kotlinx-serialization-json` | 1.7.3 | `commonMain` | JSON serialization for `@Serializable` domain models |
+| `org.jetbrains.kotlinx:kotlinx-datetime` | 0.7.1 | `commonMain` | Pairs with `kotlin.time.Instant` for typed timestamps from Postgres `timestamptz` |
+
+The Supabase client is created lazily by `SupabaseClientProvider` from `BuildConfig.SUPABASE_URL` + `BuildConfig.SUPABASE_PUBLISHABLE_KEY`, so the dependency tree initialises only when the first repository call needs it.
 
 ## Activity (Android-only)
 
@@ -102,18 +118,31 @@ These are present in `libs.versions.toml` for convenience when you start adding 
 - `enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")` — refer to modules as `projects.composeApp`
 - Foojay toolchain resolver for automatic JDK download
 
-## What this starter does **not** ship
+## Settings persistence
 
-Deliberately omitted so you can add the right tool for your project:
+| Library | Version | Role |
+|---|---|---|
+| `com.russhwolf:multiplatform-settings` | 1.2.0 | Persistent key-value (theme + last display name). Backed by `SharedPreferences` (Android), `NSUserDefaults` (iOS), `java.util.prefs` (JVM), `localStorage` (Web) — wired in each platform's `main` |
 
-- **Networking**: no Ktor, OkHttp, or Retrofit. Add `io.ktor:ktor-client-*` to `commonMain` when needed.
-- **Serialization**: no `kotlinx-serialization`. Add the plugin (`org.jetbrains.kotlin.plugin.serialization`) and the `kotlinx-serialization-json` dependency together.
-- **Persistence**: no SQLDelight, Room KMP, or DataStore. Pick the one that matches your data shape.
-- **DI**: no Koin or Kotlin-Inject. The starter is small enough to wire dependencies by hand.
-- **Logging**: no Napier or Kermit. `println` works in all targets while you bootstrap.
-- **Linting**: no ktlint or detekt. Add either to enforce style — see [Standards](STANDARDS.md).
-- **CI**: no GitHub Actions / Bitrise / Codemagic configs. Add per your hosting choice.
+## Build-time configuration (BuildKonfig)
+
+`BuildKonfig` generates a Kotlin object exposed in `commonMain` as `com.xergioalex.kmppttdynamics.config.BuildConfig` with two fields:
+
+- `BuildConfig.SUPABASE_URL`
+- `BuildConfig.SUPABASE_PUBLISHABLE_KEY`
+
+Values come from the project's `.env` file (or matching environment variables at build time). The remaining `.env` keys (`SUPABASE_PROJECT_REF`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_DB_URL`, `SUPABASE_SECRET_KEY`) are read by `scripts/supabase_apply.sh` only — they never enter `BuildConfig`.
+
+Configuration lives at the bottom of `composeApp/build.gradle.kts`. `exposeObjectWithName` is intentionally NOT set: the `@JsExport` it generates is rejected by the Kotlin/Wasm compiler on standalone objects.
+
+## What is **not** wired (yet)
+
+- **DI framework**: no Koin / Kotlin-Inject. `AppContainer` does the wiring by hand.
+- **Logging**: no Napier / Kermit. `println` works while bootstrapping.
+- **Linting**: no ktlint / detekt. Add either to enforce style — see [Standards](STANDARDS.md).
+- **CI**: no GitHub Actions / Bitrise / Codemagic configs.
 - **Crash reporting**: no Sentry / Crashlytics.
+- **Offline cache**: SQLDelight was used in a previous Todo iteration of this repo and was removed for M1 because Supabase is the only source of truth. An offline read-cache is an M6+ follow-up.
 
 When you add any of the above, **document the choice** in this file and link to the relevant guide.
 

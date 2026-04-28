@@ -1,48 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_title">KMP Todo App</string>
+    <string name="app_title">PTT Dynamics</string>
+    <string name="app_tagline">Pereira Tech Talks · dinámicas en vivo</string>
 
-    <string name="filter_all">Todas</string>
-    <string name="filter_active">Pendientes</string>
-    <string name="filter_done">Completadas</string>
+    <string name="home_live_meetups">Meetups en vivo</string>
+    <string name="home_past_meetups">Meetups anteriores</string>
+    <string name="home_no_live">No hay meetups en vivo en este momento</string>
+    <string name="home_no_past">Aún no hay meetups anteriores</string>
+    <string name="home_create">Crear meetup</string>
+    <string name="home_join_with_code">Unirse con código</string>
+    <string name="home_join_code_hint">Ingresa el código</string>
+    <string name="home_loading">Cargando meetups…</string>
 
-    <string name="search_placeholder">Buscar tareas…</string>
-    <string name="empty_no_tasks">Aún no hay tareas</string>
-    <string name="empty_no_results">Ninguna tarea coincide con el filtro</string>
+    <string name="create_title">Nuevo meetup</string>
+    <string name="create_field_title">Título</string>
+    <string name="create_field_description">Descripción</string>
+    <string name="create_field_join_code">Código de acceso</string>
+    <string name="create_field_join_code_helper">Generado automáticamente. Edítalo si quieres uno propio.</string>
+    <string name="create_action_create">Crear meetup</string>
 
-    <string name="action_add">Añadir tarea</string>
-    <string name="action_edit">Editar</string>
-    <string name="action_delete">Eliminar</string>
-    <string name="action_share">Compartir</string>
-    <string name="action_save">Guardar</string>
-    <string name="action_cancel">Cancelar</string>
+    <string name="join_title">Unirse al meetup</string>
+    <string name="join_display_name">Tu nombre</string>
+    <string name="join_role_host">Entrar como host</string>
+    <string name="join_action_join">Unirme</string>
+    <string name="join_meetup_not_found">No encontramos un meetup con ese código.</string>
+
+    <string name="room_status_draft">Borrador</string>
+    <string name="room_status_live">En vivo</string>
+    <string name="room_status_paused">En pausa</string>
+    <string name="room_status_ended">Finalizado</string>
+    <string name="room_status_archived">Archivado</string>
+    <string name="room_join_code">Código: %1$s</string>
+    <string name="room_participants">Participantes (%1$d)</string>
+    <string name="room_online">%1$d en línea</string>
+    <string name="room_no_participants">Aún nadie se ha unido.</string>
+    <string name="room_leave">Salir del room</string>
+    <string name="room_host_actions">Controles del host</string>
+    <string name="room_host_start">Iniciar meetup</string>
+    <string name="room_host_pause">Pausar</string>
+    <string name="room_host_resume">Reanudar</string>
+    <string name="room_host_end">Finalizar</string>
+
     <string name="action_back">Atrás</string>
-    <string name="action_settings">Ajustes</string>
-    <string name="action_clear_completed">Limpiar completadas</string>
-
-    <string name="field_title">Título</string>
-    <string name="field_notes">Notas</string>
-    <string name="field_category">Categoría</string>
-    <string name="field_priority">Prioridad</string>
-    <string name="field_due_at">Vence</string>
-    <string name="field_done">Hecha</string>
-    <string name="field_no_due">Sin fecha</string>
-
-    <string name="priority_low">Baja</string>
-    <string name="priority_medium">Media</string>
-    <string name="priority_high">Alta</string>
-
-    <string name="task_count_active">%1$d pendientes · %2$d completadas</string>
-    <string name="task_share_template">%1$s\n\n%2$s</string>
-
-    <string name="settings_theme">Tema</string>
-    <string name="settings_theme_system">Seguir el sistema</string>
-    <string name="settings_theme_light">Claro</string>
-    <string name="settings_theme_dark">Oscuro</string>
-    <string name="settings_language">Idioma</string>
-    <string name="settings_language_system">Idioma del sistema</string>
-    <string name="settings_language_english">Inglés</string>
-    <string name="settings_language_spanish">Español</string>
-
-    <string name="empty_detail">Selecciona o crea una tarea</string>
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_retry">Reintentar</string>
+    <string name="error_generic">Algo salió mal.</string>
+    <string name="error_supabase_not_configured">Supabase no está configurado. Define SUPABASE_URL y SUPABASE_PUBLISHABLE_KEY en .env y vuelve a compilar.</string>
+    <string name="empty_detail">Selecciona un meetup o crea uno nuevo</string>
 </resources>

@@ -10,7 +10,7 @@
 
 | Category | Guide | Purpose |
 |----------|-------|---------|
-| **App overview** | [App Overview](docs/APP_OVERVIEW.md) | Feature list, persistence per target, source set layout, KMP patterns demonstrated |
+| **App overview** | [App Overview](docs/APP_OVERVIEW.md) | Feature roadmap, milestone plan, KMP patterns demonstrated |
 | Architecture | [Architecture](docs/ARCHITECTURE.md) | Source sets, expect/actual, Compose Multiplatform, module layout |
 | Technologies | [Technologies](docs/TECHNOLOGIES.md) | Stack overview with versions and roles |
 | Standards | [Standards](docs/STANDARDS.md) | Kotlin/Compose conventions, naming, import order, expect/actual rules |
@@ -21,28 +21,26 @@
 | i18n | [I18N Guide](docs/I18N_GUIDE.md) | Compose Multiplatform resources, adding languages |
 | Performance | [Performance](docs/PERFORMANCE.md) | Compose recomposition, stable params, Wasm vs JS, R8 |
 | Accessibility | [Accessibility](docs/ACCESSIBILITY.md) | Semantics, contrast, touch targets, TalkBack/VoiceOver |
-| Security | [Security](docs/SECURITY.md) | Secrets, network TLS, secure storage, dependency hygiene |
+| Security | [Security](docs/SECURITY.md) | Secrets, network TLS, RLS, dependency hygiene |
 | Documentation | [Documentation Guide](docs/DOCUMENTATION_GUIDE.md) | When and how to update docs |
 | AI Agents | [Agent Onboarding](docs/AI_AGENT_ONBOARDING.md), [Agent Collaboration](docs/AI_AGENT_COLLAB.md) | Setup, handoff, coordination |
-| Forking | [Fork Customization](docs/FORK_CUSTOMIZATION.md) | Step-by-step rebrand of the starter into a new product |
 | Skills/Agents | [.claude/README.md](.claude/README.md) | Available Claude Code skills and agents for this repo |
 
 ## Project Overview
 
-**KMPTodoApp** — a cross-platform Todo app built with Kotlin Multiplatform and Compose Multiplatform. The shared `:composeApp` module produces apps for **Android, iOS (arm64 + simulator arm64), Desktop JVM, Web JS, and Web Wasm** from a single Compose UI written in `commonMain`.
+**KMPPTTDynamics** (product name **Pereira Tech Talks Dynamics**, "PTT Dynamics" on the home screen) — a realtime meetup engagement app built with Kotlin Multiplatform and Compose Multiplatform. The shared `:composeApp` module produces apps for **Android, iOS (arm64 + simulator arm64), Desktop JVM, Web JS, and Web Wasm** from a single Compose UI written in `commonMain`.
 
-**Feature set (v1):**
-- Full CRUD with title, notes, category, priority (Low / Medium / High), due date, done flag
-- Filter (All / Active / Done) + free-text search; mark done with strikethrough; clear-completed action
-- Material 3 date picker for due dates; theme switcher (System / Light / Dark) persisted per device
-- i18n EN + ES via Compose Multiplatform resources; locale follows the system
-- Adaptive layout (single-pane on phones, list+detail on tablet/desktop/web ≥ 720 dp)
-- Native share via `expect/actual`: Android Intent / iOS `UIActivityViewController` / Desktop clipboard / browser `navigator.clipboard`
-- Persistent storage on Android, iOS, Desktop via SQLDelight (real SQLite). Web (JS/Wasm) is in-memory in v1; SQLDelight `web-worker-driver` is a documented follow-up
+**Core idea:** every meetup is a realtime room. The host activates dynamics — chat, raised hands, Q&A, polls, raffles, trivia, announcements — and all connected devices update instantly via Supabase Realtime.
 
-> **Read [App Overview](docs/APP_OVERVIEW.md) first.** It walks the feature list against the source set layout and shows which KMP patterns each piece exercises.
+**Milestone 1 (current) implements:**
+- Create / list / join meetups
+- Realtime participant list inside the room
+- Host controls (start / pause / end)
+- 6-character join codes that exclude visually ambiguous glyphs (0/O/1/I)
 
-Bootstrapped from [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpstarter). Renameable identifiers from the upstream starter are still flagged in source with `// FORK-RENAME:` comments — `grep -rn 'FORK-RENAME' .` to list them. See [Fork Customization](docs/FORK_CUSTOMIZATION.md) if you re-fork this repo into another product.
+Subsequent milestones layer chat, hand-raise, Q&A, polls, raffles, trivia, and reactions.
+
+> Read [App Overview](docs/APP_OVERVIEW.md) for the full milestone plan and which KMP patterns each piece exercises.
 
 **Technology Stack** (full list with versions: [Technologies](docs/TECHNOLOGIES.md))
 
@@ -50,14 +48,19 @@ Bootstrapped from [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpsta
 - **Compose Multiplatform 1.10.3** — Shared declarative UI
 - **Material 3 1.10.0-alpha05** — Design system
 - **AndroidX Lifecycle 2.10.0** — `viewmodel-compose`, `runtime-compose`
-- **SQLDelight 2.1.0** — Type-safe SQLite for Android / iOS / JVM (`nonWebMain`)
-- **multiplatform-settings 1.2.0** — Persistent key-value backed by `SharedPreferences` / `NSUserDefaults` / `java.util.prefs` / `localStorage`
-- **kotlinx-datetime 0.7.1** — `LocalDateTime` + `TimeZone` formatting; pairs with `kotlin.time` for `Instant`/`Clock`
+- **supabase-kt 3.6.0** — Postgrest queries + Realtime subscriptions
+- **Ktor 3.0.3** — Transport for supabase-kt (CIO on Android/JVM, Darwin on iOS, JS engine on Web)
+- **kotlinx-serialization 1.7.3** — JSON encoding for Postgrest
 - **kotlinx-coroutines 1.10.2** — Core + `kotlinx-coroutines-swing` (Desktop dispatcher)
+- **BuildKonfig 0.17.1** — Generates a multiplatform `BuildConfig` from `.env` values
+- **multiplatform-settings 1.2.0** — Persistent key-value backed by `SharedPreferences` / `NSUserDefaults` / `java.util.prefs` / `localStorage`
+- **kotlinx-datetime 0.7.1** — `LocalDateTime` + `TimeZone` formatting; pairs with `kotlin.time.Instant`
 - **Compose Hot Reload 1.0.0** — Live reload on Desktop JVM
 - **AGP 8.11.2** — Android Gradle Plugin (compileSdk 36, minSdk 24, targetSdk 36)
 - **Java 11** — Source/target compatibility (build with **JDK 21** — Gradle 8.14 doesn't yet recognize newer JDKs)
 - **kotlin.test** — Unified test framework
+
+> SQLDelight was used by the previous Todo iteration of this repo. It has been removed for Milestone 1 because the Meetup data model is inherently online-required (Supabase). An offline cache is a documented Milestone 6+ follow-up.
 
 ## Project Structure
 
@@ -66,54 +69,47 @@ Bootstrapped from [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpsta
 ```
 composeApp/
 └── src/
-    ├── commonMain/kotlin/com/xergioalex/kmptodoapp/
-    │   ├── App.kt                      # Shared root + state-based routing + adaptive layout
-    │   ├── AppContainer.kt             # DI-lite holder (TaskRepository, AppSettings, TaskSharer)
-    │   ├── domain/                     # Task, TaskDraft, Priority, TaskFilter, TaskRepository
-    │   ├── settings/                   # AppSettings + ThemeMode (multiplatform-settings)
-    │   ├── platform/                   # TaskSharer interface + share-text builder
-    │   ├── ui/list/, ui/edit/, ui/settings/, ui/theme/
-    │   └── ui/Formatters.kt
-    ├── commonMain/composeResources/values{,-es}/strings.xml   # i18n EN + ES
-    ├── commonTest/kotlin/                                       # Shared kotlin.test tests
-    │
-    ├── nonWebMain/                     # Intermediate set seen only by Android/iOS/JVM
-    │   ├── kotlin/.../data/SqlTaskRepository.kt
-    │   ├── kotlin/.../data/DatabaseDriverFactory.kt    # expect class
-    │   └── sqldelight/com/xergioalex/kmptodoapp/db/Tasks.sq
-    │
-    ├── androidMain/    # MainActivity, AndroidTaskSharer, AndroidSqliteDriver actual
-    ├── iosMain/        # MainViewController, IosTaskSharer, NativeSqliteDriver actual
-    ├── jvmMain/        # Window { App() }, JvmTaskSharer (clipboard), JdbcSqliteDriver actual
-    ├── webMain/        # Shared between JS+Wasm: ComposeViewport entry + InMemoryTaskRepository
-    ├── jsMain/         # JsTaskSharer + createTaskSharer actual
-    └── wasmJsMain/     # WasmTaskSharer + createTaskSharer actual
+    ├── commonMain/kotlin/com/xergioalex/kmppttdynamics/
+    │   ├── App.kt                         # Shared root + state-based routing
+    │   ├── AppContainer.kt                # DI-lite holder (settings + lazy repos)
+    │   ├── JoinCodeGenerator.kt           # Stage-friendly 6-char codes
+    │   ├── domain/                        # Meetup, MeetupParticipant, MeetupStatus, ParticipantRole
+    │   ├── supabase/                      # SupabaseClientProvider (lazy, BuildKonfig-driven)
+    │   ├── meetups/                       # MeetupRepository (REST + realtime channel)
+    │   ├── participants/                  # ParticipantRepository (REST + realtime channel)
+    │   ├── settings/AppSettings.kt        # theme + last display name
+    │   └── ui/{home,create,join,room,theme,components}
+    ├── commonMain/composeResources/
+    │   ├── drawable/{ptt_logo_vertical.png, ptt_logo_horizontal.png}
+    │   ├── values/strings.xml             # i18n EN
+    │   └── values-es/strings.xml          # i18n ES
+    ├── commonTest/                        # kotlin.test
+    ├── androidMain/                       # MainActivity, Platform.android.kt, launcher icons (PTT logo)
+    ├── iosMain/                           # MainViewController, Platform.ios.kt
+    ├── jvmMain/                           # main.kt + Platform.jvm.kt
+    ├── webMain/                           # ComposeViewport entry shared by JS + Wasm
+    ├── jsMain/Platform.js.kt
+    └── wasmJsMain/Platform.wasmJs.kt
 
-iosApp/                         # Xcode project consuming the iOS framework `ComposeApp`
-gradle/libs.versions.toml       # Single version catalog — pin all dependencies here
-build.gradle.kts                # Root build (plugins declared, applied per module)
-composeApp/build.gradle.kts     # The only Gradle subproject
-settings.gradle.kts             # Repositories + TYPESAFE_PROJECT_ACCESSORS
-gradle.properties               # JVM args, configuration cache, AndroidX flags
-local.properties                # Android SDK path (gitignored)
-docs/                           # Project documentation
-.claude/                        # Claude Code skills, agents, and command reference
-tmp/                            # Scratch workspace (git-ignored, see below)
+iosApp/                          # Xcode project consuming the ComposeApp framework
+supabase/migrations/             # Idempotent SQL — apply with ./scripts/supabase_apply.sh
+scripts/supabase_apply.sh
+.env.example                     # Template — copy to .env (gitignored)
+gradle/libs.versions.toml        # Single version catalog — pin all dependencies here
+build.gradle.kts                 # Root build (plugins declared, applied per module)
+composeApp/build.gradle.kts      # The only Gradle subproject + BuildKonfig wiring
+settings.gradle.kts              # rootProject.name = "KMPPTTDynamics"
+gradle.properties                # JVM args, configuration cache, AndroidX flags
+local.properties                 # Android SDK path (gitignored)
+docs/                            # Project documentation
+.claude/                         # Claude Code skills, agents, and command reference
+assets/pereiratechtalks/         # Source logos used for branding
+tmp/                             # Scratch workspace (git-ignored)
 ```
 
 ## Temporary Workspace (`tmp/`)
 
-The `tmp/` directory at the project root is a **git-ignored scratch space** for agents and developers.
-
-**Use it for:**
-- Temporary prompts, outputs, or drafts
-- One-off analysis results, debug logs, build artifacts copied for inspection
-- Throw-away `.kt` snippets you want to compile/test outside of `commonMain`
-
-**Rules:**
-- Everything inside `tmp/` is ignored by git (except `.gitkeep`)
-- Do NOT store anything permanent or important here — it can be deleted at any time
-- When a user asks for a temporary file, prompt output, or scratch artifact, **use `tmp/`**. Subdirectories are fine (e.g., `tmp/prompts/`, `tmp/analysis/`).
+Scratch space for agents and developers. Everything inside `tmp/` is git-ignored (except `.gitkeep`). Don't keep anything important there.
 
 ## CRITICAL: Mandatory Requirements
 
@@ -133,28 +129,7 @@ If you find yourself duplicating logic across platform source sets, hoist it to 
 
 ### 3. expect / actual Discipline (MANDATORY)
 
-```kotlin
-// commonMain/Platform.kt
-interface Platform {
-    val name: String
-}
-expect fun getPlatform(): Platform
-```
-
-```kotlin
-// androidMain/Platform.android.kt
-class AndroidPlatform : Platform {
-    override val name: String = "Android ${android.os.Build.VERSION.SDK_INT}"
-}
-actual fun getPlatform(): Platform = AndroidPlatform()
-```
-
-**Rules:**
-
-1. Every `expect` must have an `actual` in **every active target** — missing one breaks the build for that target only, often discovered late
-2. `expect` declarations live in `commonMain`. Place each `actual` in the matching platform source set (`androidMain`, `iosMain`, `jvmMain`, `jsMain`, `wasmJsMain`)
-3. Filenames follow `Foo.<platform>.kt` for `actual`s (e.g., `Platform.android.kt`)
-4. Keep `expect` surface minimal — large APIs become a maintenance burden
+Every `expect` must have an `actual` in **every active target**. Filenames follow `Foo.<platform>.kt` (e.g., `Platform.android.kt`). Keep `expect` surface minimal — large APIs become a maintenance burden.
 
 Full rules: **[Standards Guide](docs/STANDARDS.md#expectactual)**.
 
@@ -162,24 +137,13 @@ Full rules: **[Standards Guide](docs/STANDARDS.md#expectactual)**.
 
 Kotlin imports follow `kotlin.code.style=official` ordering — **alphabetical, no manual grouping, no wildcards**. Let the IDE format.
 
-```kotlin
-import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
-import com.xergioalex.kmptodoapp.Greeting
-import org.jetbrains.compose.resources.painterResource
-```
-
-**Do not** add manual blank-line groupings between import categories — the configured Kotlin style is `official`, which sorts alphabetically without grouping.
-
 ### 5. Code Quality (MANDATORY)
 
-This starter ships with the Kotlin compiler's built-in checks only. Recommended additions when forking:
+This project ships with the Kotlin compiler's built-in checks only:
 
 ```bash
-./gradlew :composeApp:assemble        # Compile everything
-./gradlew :composeApp:check           # Run checks (tests + lint when configured)
-./gradlew :composeApp:lint            # Android lint (after adding lint config)
+JAVA_HOME="$(/usr/libexec/java_home -v 21)" ./gradlew :composeApp:assemble    # Compile everything
+./gradlew :composeApp:check                                                    # Run checks
 ```
 
 If you add **ktlint** or **detekt**, document the wired tasks in [Development Commands](docs/DEVELOPMENT_COMMANDS.md) and add the check to the Pre-Commit Checklist.
@@ -187,16 +151,16 @@ If you add **ktlint** or **detekt**, document the wired tasks in [Development Co
 ### 6. Testing
 
 ```bash
-./gradlew :composeApp:allTests        # All targets that support tests
-./gradlew :composeApp:jvmTest         # JVM only (fastest, recommended for TDD)
-./gradlew :composeApp:testDebugUnitTest   # Android unit tests
-./gradlew :composeApp:iosSimulatorArm64Test   # iOS simulator tests
+./gradlew :composeApp:allTests              # All targets that support tests
+./gradlew :composeApp:jvmTest               # JVM only (fastest, recommended for TDD)
+./gradlew :composeApp:testDebugUnitTest     # Android unit tests
+./gradlew :composeApp:iosSimulatorArm64Test # iOS simulator tests
 ```
 
 Run a single test:
 
 ```bash
-./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmptodoapp.ComposeAppCommonTest.example"
+./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmppttdynamics.ComposeAppCommonTest.example"
 ```
 
 Tests live in `composeApp/src/commonTest/` (shared) and `composeApp/src/<platform>Test/` (platform-specific). Conventions: **[Testing Guide](docs/TESTING_GUIDE.md)**.
@@ -206,12 +170,48 @@ Tests live in `composeApp/src/commonTest/` (shared) and `composeApp/src/<platfor
 Use Compose Multiplatform resources — **not** per-platform asset folders — for any image/string/font that should be shared.
 
 - Drop assets in `composeApp/src/commonMain/composeResources/{drawable,values,font,files}/`
-- Access via the generated `kmptodoapp.composeapp.generated.resources.Res` (e.g., `Res.drawable.compose_multiplatform`)
-- Localized strings live under `values-<locale>/strings.xml` (e.g., `values-es/strings.xml`); read with `stringResource(Res.string.app_name)`
+- Access via the generated `kmppttdynamics.composeapp.generated.resources.Res` (e.g., `Res.drawable.ptt_logo_vertical`)
+- Localized strings live under `values-<locale>/strings.xml` (e.g., `values-es/strings.xml`); read with `stringResource(Res.string.app_title)`
 
 **Never** hardcode user-visible strings in composables — wrap them in `stringResource(...)`. Full workflow: **[I18N Guide](docs/I18N_GUIDE.md)**.
 
-### 8. Performance-First Mindset (MANDATORY)
+### 8. Realtime Discipline (MANDATORY)
+
+Every repository that powers a live UI exposes a `Flow<…>` that:
+
+1. Subscribes to a `supabase_realtime` channel filtered by `meetup_id`.
+2. Emits an initial REST snapshot.
+3. Re-emits a fresh snapshot on every Postgres change.
+4. **Unsubscribes** the channel when the flow is cancelled (use `try { … } finally { withContext(NonCancellable) { channel.unsubscribe() } }`).
+
+Existing examples: `MeetupRepository.observeAll()`, `ParticipantRepository.observe(meetupId)`. Match this pattern for chat, hand-raise, Q&A, polls, raffles.
+
+### 9. Supabase Trust Boundaries (MANDATORY)
+
+| Variable | Purpose | May appear in |
+|---|---|---|
+| `SUPABASE_URL` | base project URL — `https://<ref>.supabase.co`, **never** the `/rest/v1/` endpoint | `commonMain` (via BuildKonfig), `.env` |
+| `SUPABASE_PUBLISHABLE_KEY` | anon-tier public key, gated by RLS | `commonMain` (via BuildKonfig), `.env` |
+| `SUPABASE_PROJECT_REF` | project subdomain — used by `supabase` CLI / migration script | `.env`, CLI scripts |
+| `SUPABASE_ACCESS_TOKEN` | personal account token for the CLI | `.env`, CLI scripts |
+| `SUPABASE_DB_PASSWORD` | direct Postgres credential | `.env`, CLI scripts |
+| `SUPABASE_DB_URL` | full `postgresql://…` connection string | `.env`, CLI scripts |
+| `SUPABASE_SECRET_KEY` | service-role key — backend / admin scripts only | `.env`, server-side only |
+
+**Rules:**
+- Only the first two ever leave `.env` to enter the app. They flow in via BuildKonfig and are exposed as `BuildConfig.SUPABASE_URL` / `BuildConfig.SUPABASE_PUBLISHABLE_KEY` to `commonMain`.
+- The rest stay on developer laptops and trusted CI/CD secrets — never in `commonMain`, app resources, generated config, or committed code.
+- The publishable key is safe in clients **only because RLS is configured**. Tighten the MVP-permissive RLS in `supabase/migrations/001_init.sql` before going to production.
+
+To apply database migrations:
+
+```bash
+./scripts/supabase_apply.sh
+```
+
+Migrations live under `supabase/migrations/` and are idempotent (`CREATE … IF NOT EXISTS`). The script accepts either `SUPABASE_DB_URL` directly or constructs one from `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD`.
+
+### 10. Performance-First Mindset (MANDATORY)
 
 1. **Keep composables stable** — prefer immutable data classes and `@Stable` / `@Immutable` annotations to skip recomposition
 2. **Hoist state** — read state at the lowest possible composable; pass values down, events up
@@ -223,7 +223,7 @@ Use Compose Multiplatform resources — **not** per-platform asset folders — f
 
 See **[Performance Guide](docs/PERFORMANCE.md)**.
 
-### 9. Accessibility Standards (MANDATORY)
+### 11. Accessibility Standards (MANDATORY)
 
 1. **Material 3 contrast tokens** — use `MaterialTheme.colorScheme.*` instead of hardcoded colors so dark/light themes inherit a11y-vetted contrast
 2. **Touch targets** — minimum 48dp / 48pt; Material components default to this — don't shrink
@@ -234,7 +234,7 @@ See **[Performance Guide](docs/PERFORMANCE.md)**.
 
 See **[Accessibility Guide](docs/ACCESSIBILITY.md)**.
 
-### 10. Hot Reload Workflow (Desktop)
+### 12. Hot Reload Workflow (Desktop)
 
 The Compose Hot Reload Gradle plugin is applied. To iterate quickly:
 
@@ -243,10 +243,6 @@ The Compose Hot Reload Gradle plugin is applied. To iterate quickly:
 ```
 
 Edit any composable in `commonMain` or `jvmMain` — the running window picks up the change without restart. Use this as your default inner-loop for UI work, even when the final target is Android or iOS.
-
-## Shared Agent Coordination
-
-Multiple AI agents collaborate on this codebase. When updating agent guidance, mirror changes across all relevant files. See **[AI Agent Collaboration](docs/AI_AGENT_COLLAB.md)**.
 
 ## Quick Commands
 
@@ -268,6 +264,9 @@ Multiple AI agents collaborate on this codebase. When updating agent guidance, m
 ./gradlew :composeApp:packageDistributionForCurrentOS    # Desktop installer (Dmg/Msi/Deb)
 ./gradlew :composeApp:wasmJsBrowserDistribution          # Production web bundle
 
+# Supabase
+./scripts/supabase_apply.sh                              # Apply SQL migrations
+
 # Maintenance
 ./gradlew clean                                          # Clean all build outputs
 ./gradlew :composeApp:dependencies                       # Inspect dependency graph
@@ -284,36 +283,57 @@ iOS builds run from Xcode (`iosApp/iosApp.xcodeproj`) or via the IDE's KMP run c
 
 Every platform mounts the same `App()` composable from `commonMain`:
 
-- **Android** — `MainActivity.setContent { App() }`
-- **iOS** — `MainViewController()` returns `ComposeUIViewController { App() }`, consumed by SwiftUI in `iosApp/iosApp/ContentView.swift`
-- **Desktop** — `application { Window { App() } }` in `jvmMain/main.kt`
-- **Web (JS + Wasm)** — `ComposeViewport { App() }` in `webMain/main.kt`
+- **Android** — `MainActivity.setContent { App(container) }`
+- **iOS** — `MainViewController()` returns `ComposeUIViewController { App(container) }`
+- **Desktop** — `application { Window { App(container) } }` in `jvmMain/main.kt`
+- **Web (JS + Wasm)** — `ComposeViewport { App(container) }` in `webMain/main.kt`
 
 Add new screens **inside** `App()`, not by introducing a new platform-side entry point.
 
 ### 2. Platform Abstraction via expect/actual
 
-`commonMain` defines an `expect` contract; each platform provides the `actual`. This is the canonical way to access platform APIs without leaking them into shared code. Pattern: **[Architecture → Platform abstraction](docs/ARCHITECTURE.md#platform-abstraction)**.
+`commonMain` defines an `expect` contract; each platform provides the `actual`. Currently used for `Platform.name`. New platform-only concerns (deep-link handling, push notifications, native share for the join code) follow the same pattern.
 
 ### 3. Version Catalog Single Source of Truth
 
-All dependency versions live in `gradle/libs.versions.toml`. Reference them via the typesafe accessor (`libs.compose.material3`) — never inline a version string in `build.gradle.kts`. When upgrading, edit the catalog only.
+All dependency versions live in `gradle/libs.versions.toml`. Reference them via the typesafe accessor (`libs.compose.material3`) — never inline a version string in `build.gradle.kts`.
 
 ### 4. ViewModel via androidx.lifecycle (Multiplatform)
 
-`androidx-lifecycle-viewmodel-compose` and `runtime-compose` are wired in `commonMain`, so `ViewModel` and `viewModel()` work across all targets — including iOS. Use them for screen-scoped state instead of plain `remember`.
+`androidx-lifecycle-viewmodel-compose` and `runtime-compose` are wired in `commonMain`, so `ViewModel` and `viewModel { … }` work across all targets — including iOS. Use them for screen-scoped state instead of plain `remember`.
 
 ### 5. Resources Pipeline
 
-Compose Multiplatform compiles `commonMain/composeResources/` into a generated `Res` object. Reference assets via `painterResource(Res.drawable.foo)` and `stringResource(Res.string.foo)` — same call site on every platform.
+Compose Multiplatform compiles `commonMain/composeResources/` into a generated `Res` object. Reference assets via `painterResource(Res.drawable.ptt_logo_vertical)` and `stringResource(Res.string.app_title)`.
 
 ### 6. iOS Framework Bridge
 
-`composeApp` exposes a static framework named `ComposeApp` to Xcode. The Swift side imports `ComposeApp` and calls `MainViewControllerKt.MainViewController()` (Kotlin top-level functions are exposed as `<File>Kt.<name>`).
+`composeApp` exposes a static framework named `ComposeApp` to Xcode. The Swift side imports `ComposeApp` and calls `MainViewControllerKt.MainViewController()`.
+
+### 7. Supabase Realtime Flow
+
+Every realtime feed follows the same shape:
+
+```kotlin
+fun observe(meetupId: String): Flow<List<X>> = flow {
+    val channel = supabase.channel("x_$meetupId")
+    val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+        table = "x"
+        filter("meetup_id", FilterOperator.EQ, meetupId)
+    }
+    channel.subscribe()
+    try {
+        emit(fetch(meetupId))
+        changes.collect { emit(fetch(meetupId)) }
+    } finally {
+        withContext(NonCancellable) { channel.unsubscribe() }
+    }
+}
+```
 
 ## Documentation Standards
 
-Update docs after: adding source sets, changing target list, bumping major dependency versions, adding npm/Gradle scripts, establishing patterns, adding `expect`/`actual` boundaries, adding new platform-specific resources. See **[Documentation Guide](docs/DOCUMENTATION_GUIDE.md)**.
+Update docs after: adding source sets, changing target list, bumping major dependency versions, adding npm/Gradle scripts, establishing patterns, adding `expect`/`actual` boundaries, adding new platform-specific resources, **adding a new realtime feed or table**. See **[Documentation Guide](docs/DOCUMENTATION_GUIDE.md)**.
 
 ## Common Mistakes to Avoid
 
@@ -329,10 +349,14 @@ Update docs after: adding source sets, changing target list, bumping major depen
 8. Hardcode colors (use `MaterialTheme.colorScheme.*`)
 9. Read `Build.VERSION.SDK_INT` or `UIKit` types from `commonMain` (gate them behind `expect`)
 10. Skip the IDE's Kotlin formatter (`kotlin.code.style=official` is set in `gradle.properties`)
-11. Commit `local.properties`, `*.iml`, or `xcuserdata/` (already in `.gitignore`)
+11. Commit `local.properties`, `*.iml`, `xcuserdata/`, **or `.env`** (already in `.gitignore`)
 12. Add a new dependency that exists for one target only without checking it has multiplatform variants
-13. Refer to the iOS framework as anything other than `ComposeApp` (the baseName is wired to that string)
+13. Refer to the iOS framework as anything other than `ComposeApp`
 14. Update `CLAUDE.md` directly — it is a symlink to `AGENTS.md`. Edit `AGENTS.md`.
+15. Reference `SUPABASE_SECRET_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, or `auth.users` from `commonMain` or any client-shipped code.
+16. Subscribe to a Supabase Realtime channel without an `unsubscribe()` in a `finally` block — leaks pile up fast.
+17. Add `@JsExport`-style configuration to BuildKonfig (`exposeObjectWithName`); Kotlin/Wasm rejects it on standalone objects.
+18. Put `/rest/v1/` in `SUPABASE_URL` — the SDK appends paths itself.
 
 ### DO:
 
@@ -346,17 +370,21 @@ Update docs after: adding source sets, changing target list, bumping major depen
 8. Bump versions only in `gradle/libs.versions.toml`
 9. Add tests in `commonTest` whenever the logic lives in `commonMain`
 10. Use `MaterialTheme.colorScheme` and `MaterialTheme.typography` so dark mode and theming are automatic
+11. Scope every realtime subscription to a `meetup_id` filter and unsubscribe in `finally`
+12. Treat the publishable key as configuration, not a secret — but treat the rest of `.env` as secrets
 
 ## Pre-Commit Checklist
 
 - [ ] All code, comments, and identifiers in English
-- [ ] `./gradlew :composeApp:assemble` succeeds (compiles for all targets)
+- [ ] `JAVA_HOME="$(/usr/libexec/java_home -v 21)" ./gradlew :composeApp:assemble` succeeds (compiles for all targets)
 - [ ] `./gradlew :composeApp:allTests` passes
 - [ ] If you added an `expect`, every active target has the matching `actual`
 - [ ] If you added a dependency, it lives in `gradle/libs.versions.toml`
 - [ ] User-visible strings go through `stringResource(...)`
 - [ ] No hardcoded colors — uses `MaterialTheme.colorScheme.*`
-- [ ] No `local.properties` / `*.iml` / `xcuserdata/` staged
+- [ ] No `local.properties` / `*.iml` / `xcuserdata/` / `.env` staged
+- [ ] If you added a new realtime feed: subscription has a matching `unsubscribe()` and a `meetup_id` filter
+- [ ] If you added a new SQL table: it's added to `supabase_realtime` publication in the migration
 - [ ] Documentation updated for any architectural change (new source set, new target, new pattern)
 - [ ] Commit message in English (conventional format)
 
@@ -373,7 +401,6 @@ This repository ships with a `.claude/` directory containing slash-command skill
 - `/fix-build` — Diagnose and repair a failing Gradle build
 - `/bump-deps` — Update `gradle/libs.versions.toml` safely (changelog + verification)
 - `/add-platform-feature` — Add a feature that needs a real platform API (network, storage, sensor)
-- `/fork-rebrand` — Walk a fresh fork through package, applicationId, namespace, bundle id, app name
 - `/release-android`, `/release-ios`, `/release-desktop`, `/release-web` — Per-target release procedures
 
 **Agents:**
@@ -397,7 +424,7 @@ This repository ships with a `.claude/` directory containing slash-command skill
 
 > **Why `#` for non-Claude agents?** Most AI CLIs (Codex, Cursor) intercept `/` as their own system commands. Using `#` avoids interception. You can also write the command name in plain text: "run add-screen".
 
-When a command is invoked (via `/`, `#`, or by name), the agent MUST:
+When a command is invoked, the agent MUST:
 
 1. **Look up** the command in **[.claude/README.md](.claude/README.md)** to find its skill file
 2. **READ** the linked skill file completely
@@ -411,8 +438,9 @@ When a command is invoked (via `/`, `#`, or by name), the agent MUST:
 **Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`
 
 Examples:
-- `feat: add task list screen with shared state`
-- `fix: align iOS safe area in App.kt`
-- `chore: bump compose multiplatform to 1.10.4`
-- `build: enable R8 for android release`
-- `docs: document hot reload workflow`
+- `feat(meetups): create meetup with auto-generated join code`
+- `feat(realtime): subscribe room participants to postgres-changes`
+- `fix(supabase): unsubscribe channel in finally to avoid leaks`
+- `chore(deps): bump supabase-kt to 3.7.0`
+- `build(buildkonfig): drop exposeObjectWithName so Wasm compiles`
+- `docs: document Supabase trust boundaries`

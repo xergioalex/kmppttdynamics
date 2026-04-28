@@ -1,6 +1,6 @@
 # Internationalization (i18n)
 
-How to localize KMPTodoApp. The app uses **Compose Multiplatform resources** — the same API works on every target, no per-platform string handling needed.
+How to localize KMPPTTDynamics. The app uses **Compose Multiplatform resources** — the same API works on every target, no per-platform string handling needed.
 
 ## Where strings live
 
@@ -23,9 +23,9 @@ Locale qualifiers follow the standard [BCP-47](https://en.wikipedia.org/wiki/IET
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">KMPTodoApp</string>
+    <string name="app_name">PTT Dynamics</string>
     <string name="welcome_message">Hello, %1$s!</string>
-    <string name="task_count">You have %1$d tasks</string>
+    <string name="participant_count">%1$d participants joined</string>
 </resources>
 ```
 
@@ -34,9 +34,9 @@ Locale qualifiers follow the standard [BCP-47](https://en.wikipedia.org/wiki/IET
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">KMPTodoApp</string>
+    <string name="app_name">PTT Dynamics</string>
     <string name="welcome_message">¡Hola, %1$s!</string>
-    <string name="task_count">Tienes %1$d tareas</string>
+    <string name="participant_count">%1$d participantes</string>
 </resources>
 ```
 
@@ -44,8 +44,8 @@ Locale qualifiers follow the standard [BCP-47](https://en.wikipedia.org/wiki/IET
 
 ```kotlin
 import org.jetbrains.compose.resources.stringResource
-import kmptodoapp.composeapp.generated.resources.Res
-import kmptodoapp.composeapp.generated.resources.welcome_message
+import kmppttdynamics.composeapp.generated.resources.Res
+import kmppttdynamics.composeapp.generated.resources.welcome_message
 
 @Composable
 fun WelcomeBanner(name: String) {
@@ -61,8 +61,8 @@ When you need a string in a `ViewModel` or repository:
 
 ```kotlin
 import org.jetbrains.compose.resources.getString
-import kmptodoapp.composeapp.generated.resources.Res
-import kmptodoapp.composeapp.generated.resources.welcome_message
+import kmppttdynamics.composeapp.generated.resources.Res
+import kmppttdynamics.composeapp.generated.resources.welcome_message
 
 class MyViewModel : ViewModel() {
     suspend fun greet(name: String): String =
@@ -77,9 +77,9 @@ class MyViewModel : ViewModel() {
 Compose Multiplatform supports plural strings as of the 1.6+ resource pipeline. Define in `values/strings.xml`:
 
 ```xml
-<plurals name="task_count">
-    <item quantity="one">You have %1$d task</item>
-    <item quantity="other">You have %1$d tasks</item>
+<plurals name="participant_count">
+    <item quantity="one">%1$d participant</item>
+    <item quantity="other">%1$d participants</item>
 </plurals>
 ```
 
@@ -87,10 +87,10 @@ Read:
 
 ```kotlin
 import org.jetbrains.compose.resources.pluralStringResource
-import kmptodoapp.composeapp.generated.resources.Res
-import kmptodoapp.composeapp.generated.resources.task_count
+import kmppttdynamics.composeapp.generated.resources.Res
+import kmppttdynamics.composeapp.generated.resources.participant_count
 
-Text(pluralStringResource(Res.plurals.task_count, count, count))
+Text(pluralStringResource(Res.plurals.participant_count, count, count))
 ```
 
 The `quantity` keys follow [CLDR rules](https://cldr.unicode.org/index/cldr-spec/plural-rules) (`zero`, `one`, `two`, `few`, `many`, `other`).

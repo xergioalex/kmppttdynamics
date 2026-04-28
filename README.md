@@ -1,100 +1,240 @@
-# KMPTodoApp
+# Pereira Tech Talks Dynamics
 
-A cross-platform Todo app written **once in `commonMain`** with Kotlin Multiplatform + Compose Multiplatform, and shipped to **Android, iOS, Desktop (JVM), Web (Wasm), and Web (JS)** from a single shared module.
+> A Kotlin Multiplatform + Compose Multiplatform app for **live community
+> engagement at meetups**. Each meetup is a realtime room. Inside that room
+> the host activates dynamics — chat, raised hands, Q&A, polls, raffles,
+> trivia, announcements — and every connected device updates instantly.
 
-The point of this project is to exercise the real bondades of KMP — shared domain, shared UI, platform code only where it earns its keep — on a small but realistic product.
+Built around the [Pereira Tech Talks](https://pereiratechtalks.com)
+community, but designed as a generic Meetup Dynamics platform.
 
-![KMPTodoApp running on the Android emulator alongside the source tree in Android Studio](assets/android_studio_setup.png)
+Targets, all from a single shared module:
 
-## Features
+- **Android**
+- **iOS** (arm64 + simulator arm64)
+- **Desktop JVM** (macOS, Windows, Linux)
+- **Web (Kotlin/Wasm)** — preferred for production
+- **Web (Kotlin/JS)** — legacy fallback
 
-- **Full CRUD** with title, notes, category, priority (Low / Medium / High), due date, and done flag
-- **Filter** by *All / Active / Done* (filter persists across sessions) and **free-text search** over title / notes / category
-- **Mark done with strikethrough**; the list re-sorts so active tasks come first, then by priority and due date
-- **Material 3 date picker** for due dates
-- **Theme**: System / Light / Dark — your choice persists per device
-- **i18n out of the box**: English + Spanish; the app picks up the system locale
-- **Adaptive layout**: single-pane on phones, list + detail on tablets / desktop / web (≥ 720 dp wide)
-- **Native share** per platform: Android intent / iOS share sheet / Desktop clipboard / browser `navigator.clipboard`
-- **Persistent storage** on Android, iOS and Desktop via SQLite (SQLDelight). Web is in-memory in v1 (see [App Overview → What's next](docs/APP_OVERVIEW.md#whats-next))
-
-> **Want the full story** — feature list, source set layout, persistence backends per platform, and which KMP patterns each piece exercises? Read **[`docs/APP_OVERVIEW.md`](docs/APP_OVERVIEW.md)**.
-
-## Architecture at a glance
+## Core idea
 
 ```
-commonMain          domain/   →   ui/   (StateFlow ViewModels, Compose screens, Material 3 theme)
-                       ▲
-                       │ implements
-                       │
-nonWebMain          data/SqlTaskRepository (SQLDelight)        ── android / ios / jvm
-webMain             data/InMemoryTaskRepository (StateFlow)    ── jsMain   / wasmJsMain
+App
+  └── Meetups / Rooms          ← created by the host, joined by a code
+        ├── Participants       ← realtime list, online presence
+        ├── Chat + Announcements
+        ├── Hand Raise queue
+        ├── Q&A with upvotes
+        ├── Polls
+        ├── Raffles
+        ├── Trivia (later)
+        ├── Reactions (later)
+        └── Live Activity Feed
 ```
 
-- All UI, ViewModels, and the domain model live in `commonMain` — no per-platform clones.
-- `TaskRepository` is one interface with two implementations split by an intermediate `nonWebMain` source set.
-- Platform-only concerns (database driver, settings backend, native share) sit behind `expect`/`actual` or behind small per-platform classes injected via an `AppContainer` data class.
+Every dynamic is scoped by `meetup_id`. Every device updates live via
+**Supabase Realtime** (Postgres CDC + presence + broadcast).
 
-The whole thing reads like a normal Android Compose app with the platform glue moved outside `commonMain`. See [App Overview](docs/APP_OVERVIEW.md) and [Architecture](docs/ARCHITECTURE.md) for the long version.
+## Current milestone
+
+| Milestone | Status |
+|---|---|
+| **M1 — Rooms + Participants + realtime foundation** | ✅ Implemented |
+| M2 — Chat + Announcements                            | ⏳ Planned |
+| M3 — Raise hand + Q&A                                | ⏳ Planned |
+| M4 — Polls                                           | ⏳ Planned |
+| M5 — Raffles                                         | ⏳ Planned |
+| M6 — Host dashboard polish, projection-friendly views | ⏳ Planned |
+
+What works today:
+
+- Create meetup with a generated 6-char join code
+- List live & past meetups on the home screen
+- Join by code or by tapping a meetup
+- Pick a display name, optionally elevate to host
+- Room screen with realtime participant list
+- Host controls (start / pause / end the meetup)
 
 ## Tech stack
 
 | What | Version | Why |
 |---|---|---|
-| **Kotlin Multiplatform** | 2.3.20 | Shared language across all targets |
-| **Compose Multiplatform** | 1.10.3 | Shared declarative UI on every target |
-| **Material 3** | 1.10.0-alpha05 | Design system, theming, date picker |
-| **AndroidX Lifecycle (KMP)** | 2.10.0 | `ViewModel` + `viewModelScope` in `commonMain` |
-| **SQLDelight** | 2.1.0 | Type-safe SQLite for Android / iOS / JVM |
-| **kotlinx-datetime** | 0.7.1 | `LocalDateTime` + `TimeZone` formatting; pairs with `kotlin.time` for `Instant` / `Clock` |
-| **multiplatform-settings** | 1.2.0 | Persistent key-value (theme, filter) on every target |
-| **Compose Hot Reload** | 1.0.0 | Live reload while iterating on Desktop |
+| Kotlin Multiplatform | 2.3.20 | Shared language across all targets |
+| Compose Multiplatform | 1.10.3 | Shared declarative UI on every target |
+| Material 3 | 1.10.0-alpha05 | Design system |
+| AndroidX Lifecycle (KMP) | 2.10.0 | `ViewModel` + `viewModelScope` in `commonMain` |
+| **supabase-kt** | 3.6.0 | Postgrest queries + Realtime subscriptions |
+| Ktor client | 3.0.3 | Transport layer for supabase-kt (CIO / Darwin / JS engines) |
+| kotlinx-serialization | 1.7.3 | JSON for Postgrest payloads |
+| kotlinx-coroutines | 1.10.2 | Realtime flows + structured concurrency |
+| BuildKonfig | 0.17.1 | Generates a multiplatform `BuildConfig` from `.env` values |
+| multiplatform-settings | 1.2.0 | Theme + last-used display name persistence |
+| Compose Hot Reload | 1.0.0 | Live reload while iterating on Desktop |
 
-Full catalog with rationale: [docs/TECHNOLOGIES.md](docs/TECHNOLOGIES.md).
+Full catalog: [`docs/TECHNOLOGIES.md`](docs/TECHNOLOGIES.md).
 
-## Quick start
+## Supabase setup
 
-> ⚠️ Use **Java 21** for Gradle. The bundled Kotlin compiler in Gradle 8.14 doesn't yet handle newer JDKs. On macOS:
-> ```bash
-> export JAVA_HOME="/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home"
-> ```
-> When you run from Android Studio's Run config, the IDE supplies its own JDK and you don't need this export.
+The app needs a Supabase project. The migration script provisions every
+table the milestones need (meetups, participants, chat, hand raises,
+questions, polls, raffles, activity events, plus realtime publication
+and a permissive RLS baseline).
+
+### 1. Create a Supabase project
+
+Sign up at [supabase.com](https://supabase.com) and create a project in
+the Americas region. Note your project ref (the random subdomain in the
+project URL) and database password.
+
+### 2. Configure `.env`
 
 ```bash
-./gradlew :composeApp:run                              # Desktop (with Compose Hot Reload)
-./gradlew :composeApp:installDebug                     # Android (needs an emulator/device)
-./gradlew :composeApp:wasmJsBrowserDevelopmentRun      # Web (Wasm — preferred)
-./gradlew :composeApp:jsBrowserDevelopmentRun          # Web (JS — legacy fallback)
+cp .env.example .env
+```
+
+Fill in:
+
+| Variable | Where to get it | Used by |
+|---|---|---|
+| `SUPABASE_URL` | Project Settings → API → Project URL | client (BuildKonfig) |
+| `SUPABASE_PUBLISHABLE_KEY` | Project Settings → API → `anon` / publishable key | client (BuildKonfig) |
+| `SUPABASE_PROJECT_REF` | The subdomain in your project URL | `scripts/supabase_apply.sh` |
+| `SUPABASE_DB_PASSWORD` | The password you set when you created the project | `scripts/supabase_apply.sh` |
+| `SUPABASE_DB_URL` *(optional)* | Project Settings → Database → Connection string | `scripts/supabase_apply.sh` (overrides the previous two) |
+| `SUPABASE_ACCESS_TOKEN` *(optional)* | Account → Access Tokens | `supabase` CLI |
+| `SUPABASE_SECRET_KEY` *(optional)* | Project Settings → API → service_role key | trusted backend scripts only |
+
+> **Trust boundaries.** `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` ship
+> inside every client and are gated by Row Level Security. Everything
+> else (`ACCESS_TOKEN`, `DB_PASSWORD`, `SECRET_KEY`) is **CLI-only** —
+> never reference it from `commonMain`, app resources, or any code that
+> ends up in a release artifact. `BuildKonfig` is wired to read **only**
+> the first two; the others stay in `.env` and on developer laptops.
+
+### 3. Apply the schema
+
+```bash
+./scripts/supabase_apply.sh
+```
+
+This runs every file in `supabase/migrations/` against the database via
+`psql`. Re-runs are safe — every statement is idempotent.
+
+The first migration creates:
+
+- All tables (`meetups`, `meetup_participants`, `chat_messages`,
+  `raised_hands`, `questions`, `question_votes`, `polls`, `poll_options`,
+  `poll_votes`, `raffles`, `raffle_entries`, `raffle_winners`,
+  `activity_events`, plus an optional `profiles` shell for future auth)
+- A trigger that keeps `questions.upvotes_count` in sync with the
+  `question_votes` table
+- A unique partial index that prevents two active raised hands per
+  participant
+- All these tables added to the `supabase_realtime` publication so
+  Postgres-changes subscriptions deliver inserts / updates / deletes
+- **Permissive MVP RLS policies** that let the anon role read and write
+  freely. **Tighten before production** — search for `WARNING:` in the
+  SQL file.
+
+### 4. Build & run
+
+```bash
+./gradlew :composeApp:run                          # Desktop (hot reload)
+./gradlew :composeApp:installDebug                 # Android emulator/device
+./gradlew :composeApp:wasmJsBrowserDevelopmentRun  # Web (Wasm — preferred)
+./gradlew :composeApp:jsBrowserDevelopmentRun      # Web (JS — legacy)
 # iOS: open iosApp/iosApp.xcodeproj in Xcode and ⌘R
 ```
 
-Full command reference: [docs/DEVELOPMENT_COMMANDS.md](docs/DEVELOPMENT_COMMANDS.md).
+> ⚠️ Build with **Java 21**. Gradle 8.14 doesn't recognise newer JDKs.
+> ```bash
+> export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
+> ```
 
-## Getting started (new to KMP?)
+If `.env` is missing or its keys are blank, the app boots into a friendly
+"Supabase not configured" screen that points back here.
 
-If this is your first Kotlin Multiplatform project on macOS, walk these in order:
+## Architecture at a glance
 
-1. [`docs/getting-started/ENVIRONMENT_SETUP.md`](docs/getting-started/ENVIRONMENT_SETUP.md) — install Android Studio, Xcode, the KMP plugin, and Java 21
-2. [`docs/getting-started/RUNNING_THE_APP.md`](docs/getting-started/RUNNING_THE_APP.md) — run on Android (emulator + real device), iOS (simulator + real iPhone), Desktop, and Web
-3. [`docs/getting-started/TROUBLESHOOTING.md`](docs/getting-started/TROUBLESHOOTING.md) — every issue we actually hit during setup, with fixes
-4. [`docs/getting-started/FLUTTER_BONUS.md`](docs/getting-started/FLUTTER_BONUS.md) — optional Flutter setup + KMP-vs-Flutter comparison
+```
+commonMain                  domain/        ← Meetup, MeetupParticipant, ParticipantRole, MeetupStatus
+                            supabase/      ← SupabaseClientProvider (lazy, BuildKonfig-driven)
+                            meetups/       ← MeetupRepository  (REST + realtime channel)
+                            participants/  ← ParticipantRepository (REST + realtime channel)
+                            ui/{home,create,join,room,theme,components}
+                                ▲
+                                │ injected via
+                                │
+                            AppContainer   ← built once at each platform entry point
+```
 
-## What's inside
+- All UI, view models, repositories, and the domain model live in
+  `commonMain` — no per-platform clones.
+- Each platform main wires `AppSettings` (multiplatform-settings) and
+  hands the container to `App()`.
+- Supabase config flows in via a `BuildConfig` Kotlin object that
+  BuildKonfig generates at build time from `.env`.
 
-- `composeApp/` — the only Gradle subproject. Shared UI in `commonMain`, SQL repository in `nonWebMain`, in-memory repository in `webMain`, platform glue in `androidMain` / `iosMain` / `jvmMain` / `jsMain` / `wasmJsMain`
-- `iosApp/` — Xcode project that consumes the `ComposeApp` framework
-- `gradle/libs.versions.toml` — single version catalog (every dependency pinned here)
-- `docs/` — full documentation set (see below)
-- `.claude/` — Claude Code skills and agents tuned for KMP work
-- `AGENTS.md` — single source of truth for AI assistants (Claude, Cursor, Codex, Gemini, Copilot)
+Full write-up: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Realtime model
+
+Every repository that powers a live UI exposes a `Flow<…>` that:
+
+1. Subscribes to the matching `supabase_realtime` channel filtered by
+   `meetup_id`.
+2. Emits an initial REST snapshot.
+3. Re-emits a fresh snapshot on every Postgres change.
+4. Unsubscribes the channel when the flow is cancelled.
+
+`MeetupRepository.observeAll()` powers the home screen.
+`ParticipantRepository.observe(meetupId)` powers the room.
+
+When chat / hand raise / Q&A / polls / raffles land in the next
+milestones, each will follow the same pattern.
+
+## Project layout
+
+```
+composeApp/
+└── src/
+    ├── commonMain/kotlin/com/xergioalex/kmppttdynamics/
+    │   ├── App.kt
+    │   ├── AppContainer.kt
+    │   ├── JoinCodeGenerator.kt
+    │   ├── domain/                 # Meetup, MeetupParticipant, etc.
+    │   ├── supabase/               # SupabaseClientProvider
+    │   ├── meetups/                # MeetupRepository
+    │   ├── participants/           # ParticipantRepository
+    │   ├── settings/AppSettings.kt # theme + last display name
+    │   └── ui/{home,create,join,room,theme,components}
+    ├── commonMain/composeResources/
+    │   ├── drawable/{ptt_logo_vertical.png, ptt_logo_horizontal.png}
+    │   ├── values/strings.xml      # English
+    │   └── values-es/strings.xml   # Spanish
+    ├── commonTest/                 # kotlin.test
+    ├── androidMain/                # MainActivity, Platform.android.kt, launcher icons
+    ├── iosMain/                    # MainViewController, Platform.ios.kt
+    ├── jvmMain/                    # main.kt + Platform.jvm.kt
+    ├── webMain/                    # ComposeViewport entry shared by JS + Wasm
+    ├── jsMain/Platform.js.kt
+    └── wasmJsMain/Platform.wasmJs.kt
+
+iosApp/                             # Xcode project consuming the ComposeApp framework
+supabase/migrations/                # Idempotent SQL (apply with scripts/supabase_apply.sh)
+scripts/supabase_apply.sh
+.env.example                         # Template — copy to .env (gitignored)
+gradle/libs.versions.toml            # Single version catalog
+docs/                                # Architecture, platforms, testing, etc.
+assets/pereiratechtalks/             # Source logos used for branding
+```
 
 ## Documentation
 
 | Topic | File |
 |---|---|
-| **App overview, features, architecture** | [`docs/APP_OVERVIEW.md`](docs/APP_OVERVIEW.md) |
-| Getting started (macOS, from zero) | [`docs/getting-started/`](docs/getting-started/) |
 | Architecture & source sets | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| App overview & feature roadmap | [`docs/APP_OVERVIEW.md`](docs/APP_OVERVIEW.md) |
 | Stack and versions | [`docs/TECHNOLOGIES.md`](docs/TECHNOLOGIES.md) |
 | Coding standards | [`docs/STANDARDS.md`](docs/STANDARDS.md) |
 | Gradle commands | [`docs/DEVELOPMENT_COMMANDS.md`](docs/DEVELOPMENT_COMMANDS.md) |
@@ -104,18 +244,50 @@ If this is your first Kotlin Multiplatform project on macOS, walk these in order
 | Internationalization | [`docs/I18N_GUIDE.md`](docs/I18N_GUIDE.md) |
 | Performance | [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md) |
 | Accessibility | [`docs/ACCESSIBILITY.md`](docs/ACCESSIBILITY.md) |
-| Security | [`docs/SECURITY.md`](docs/SECURITY.md) |
-| Fork rebrand checklist | [`docs/FORK_CUSTOMIZATION.md`](docs/FORK_CUSTOMIZATION.md) |
+| Security & RLS | [`docs/SECURITY.md`](docs/SECURITY.md) |
 | AI agent onboarding | [`docs/AI_AGENT_ONBOARDING.md`](docs/AI_AGENT_ONBOARDING.md) |
+
+## Roadmap
+
+- [x] **M1** Rooms + participants + realtime
+- [ ] **M2** Chat + announcements
+- [ ] **M3** Raise hand + Q&A
+- [ ] **M4** Polls
+- [ ] **M5** Raffles
+- [ ] **M6** Host dashboard polish (projection mode, dark theme audit)
+- [ ] **M7+** Trivia, reactions, leaderboard, QR check-in, Supabase Auth, hardened RLS, Edge Functions for fair raffle draws, analytics, event-history exports
+
+## Production safety notes
+
+This project is currently a **demo / community tool**, not a hardened
+product. Document and tighten before public deployment:
+
+- **RLS policies are permissive.** Anyone with the anon key can insert
+  into any meetup. Add per-row checks (host-only writes for
+  `meetups.status`, host-only inserts for `polls`, etc.).
+- **Anonymous participants** make abuse easy. Layer Supabase Auth on top
+  before opening to public meetups.
+- **Raffle draws happen on the host client** today. For fairness, move
+  the draw into a Supabase Edge Function or SQL function so the host can't
+  re-roll.
+- **Chat has no rate limiting or moderation tooling.** Add both.
+- **Presence is ephemeral.** Don't rely on `is_online` for billing,
+  attendance, or anything that needs an auditable record.
 
 ## Project history
 
-Bootstrapped from [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpstarter). Renameable identifiers from the upstream starter are flagged in source with `// FORK-RENAME:` comments — `grep -rn 'FORK-RENAME' .` to list them.
+This repository started as [`xergioalex/kmpstarter`](https://github.com/xergioalex/kmpstarter),
+became a Todo demo at [`xergioalex/kmptodoapp`](https://github.com/xergioalex/kmptodoapp),
+and is now Pereira Tech Talks Dynamics. The KMP plumbing (source sets,
+target list, build config, Compose resources, hot reload) is inherited
+from those iterations.
 
 ## License
 
-Released under the [MIT License](LICENSE) — free to use, modify, and distribute.
+Released under the [MIT License](LICENSE).
 
 ## Credits
 
-Bootstrapped from the JetBrains [Kotlin Multiplatform / Compose Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html) project wizard.
+- KMP / Compose Multiplatform foundations from JetBrains.
+- Supabase Kotlin client by [`@jan-tennert`](https://github.com/jan-tennert) and contributors.
+- Logos and brand by the [Pereira Tech Talks](https://pereiratechtalks.com) community.

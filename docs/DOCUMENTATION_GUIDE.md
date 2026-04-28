@@ -99,7 +99,7 @@ Skill files (`.claude/skills/<name>.md`) follow the same rules but are step-by-s
 
 ## Forking
 
-When this starter is forked into a new product, the **first commit on the fork** should:
+When this project is forked into a new product, the **first commit on the fork** should:
 
 1. Update [README.md](../README.md) with the new product name and purpose
 2. Update [AGENTS.md](../AGENTS.md) Project Overview section

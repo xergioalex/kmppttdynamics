@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		137458A33D5388E44CFFB83E /* TodoAppX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TodoAppX.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		137458A33D5388E44CFFB83E /* KMPPTTDynamics.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KMPPTTDynamics.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -50,7 +50,7 @@
 		677F561BA1D5F24FD9836D27 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				137458A33D5388E44CFFB83E /* TodoAppX.app */,
+				137458A33D5388E44CFFB83E /* KMPPTTDynamics.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -87,7 +87,7 @@
 			packageProductDependencies = (
 			);
 			productName = iosApp;
-			productReference = 137458A33D5388E44CFFB83E /* TodoAppX.app */;
+			productReference = 137458A33D5388E44CFFB83E /* KMPPTTDynamics.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

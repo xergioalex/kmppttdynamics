@@ -93,7 +93,7 @@ Mark headings so screen readers can navigate:
 
 ```kotlin
 Text(
-    text = "Today's Tasks",
+    text = "Live meetups",
     style = MaterialTheme.typography.headlineMedium,
     modifier = Modifier.semantics { heading() }
 )

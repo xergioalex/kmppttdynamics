@@ -1,6 +1,8 @@
+import com.codingfeline.buildkonfig.compiler.FieldSpec
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -8,7 +10,8 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
-    alias(libs.plugins.sqldelight)
+    alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.buildkonfig)
 }
 
 kotlin {
@@ -25,16 +28,8 @@ kotlin {
         iosSimulatorArm64()
     ).forEach { iosTarget ->
         iosTarget.binaries.framework {
-            // FORK-RENAME (optional): the iOS framework name is referenced from
-            // iosApp/iosApp/ContentView.swift via `import ComposeApp`. If you rename
-            // here, also update the Swift import. Most forks keep "ComposeApp" — it
-            // is an internal name no end user sees. See docs/FORK_CUSTOMIZATION.md.
             baseName = "ComposeApp"
             isStatic = true
-            // SQLDelight's NativeSqliteDriver calls into libsqlite3 (system framework
-            // on iOS); tell the Kotlin/Native linker to link it so symbols like
-            // _sqlite3_open_v2 are resolved when Xcode links the app.
-            linkerOpts("-lsqlite3")
         }
     }
 
@@ -55,7 +50,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
-            implementation(libs.sqldelight.driver.android)
+            implementation(libs.ktor.client.cio)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -69,48 +64,40 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.coroutinesCore)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.serializationJson)
+            implementation(libs.ktor.client.core)
             implementation(libs.multiplatformSettings)
-            implementation(libs.sqldelight.runtime)
-            implementation(libs.sqldelight.coroutines)
+            implementation(libs.supabase.postgrestKt)
+            implementation(libs.supabase.realtimeKt)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
-        val nonWebMain by creating { dependsOn(commonMain.get()) }
-        androidMain.get().dependsOn(nonWebMain)
-        iosMain.get().dependsOn(nonWebMain)
-        jvmMain.get().dependsOn(nonWebMain)
         iosMain.dependencies {
-            implementation(libs.sqldelight.driver.native)
+            implementation(libs.ktor.client.darwin)
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
-            implementation(libs.sqldelight.driver.sqlite)
+            implementation(libs.ktor.client.cio)
         }
-    }
-}
-
-sqldelight {
-    databases {
-        create("TodoDatabase") {
-            packageName.set("com.xergioalex.kmptodoapp.db")
-            srcDirs.setFrom("src/nonWebMain/sqldelight")
-            generateAsync.set(false)
+        jsMain.dependencies {
+            implementation(libs.ktor.client.js)
+        }
+        val wasmJsMain by getting {
+            dependencies {
+                implementation(libs.ktor.client.js)
+            }
         }
     }
 }
 
 android {
-    // FORK-RENAME: namespace must match the Kotlin package; both change together when forking.
-    // See docs/FORK_CUSTOMIZATION.md.
-    namespace = "com.xergioalex.kmptodoapp"
+    namespace = "com.xergioalex.kmppttdynamics"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        // FORK-RENAME: applicationId is the Play Store identity. NEVER change after publishing.
-        // Pick the final value before your first Play upload. See docs/FORK_CUSTOMIZATION.md.
-        applicationId = "com.xergioalex.kmptodoapp"
+        applicationId = "com.xergioalex.kmppttdynamics"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
@@ -138,15 +125,58 @@ dependencies {
 
 compose.desktop {
     application {
-        // FORK-RENAME: mainClass must match the Kotlin package of jvmMain/main.kt.
-        // See docs/FORK_CUSTOMIZATION.md.
-        mainClass = "com.xergioalex.kmptodoapp.MainKt"
+        mainClass = "com.xergioalex.kmppttdynamics.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            // FORK-RENAME: packageName is the desktop installer identifier.
-            packageName = "com.xergioalex.kmptodoapp"
+            packageName = "PTTDynamics"
             packageVersion = "1.0.0"
         }
+    }
+}
+
+// ─── Supabase client config ──────────────────────────────────────────
+// BuildKonfig generates a `BuildConfig` Kotlin object that is included
+// in commonMain on every target. Treat it as a public-shippable config
+// surface: anything baked here can be inspected by anyone running the
+// app.
+//
+// Only two values belong here — both are designed by Supabase to ship
+// inside clients (RLS is the gate, not the key):
+//
+//     SUPABASE_URL                   project URL
+//     SUPABASE_PUBLISHABLE_KEY       anon-tier public key
+//
+// NEVER add any of the following to BuildKonfig, app resources, or any
+// committed config — they grant elevated access:
+//
+//     SUPABASE_SECRET_KEY            (formerly service_role)
+//     SUPABASE_ACCESS_TOKEN          personal access token (CLI)
+//     SUPABASE_DB_PASSWORD           direct Postgres credential
+//     SUPABASE_PROJECT_ID            (low risk, but CLI-only by convention)
+//
+// Those live exclusively in `.env` (gitignored) and are read by
+// scripts/supabase_apply.sh on the developer's machine.
+val envProps: Properties = Properties().apply {
+    val envFile = rootProject.file(".env")
+    if (envFile.exists()) {
+        envFile.inputStream().use(::load)
+    }
+}
+fun envOrSystem(key: String, fallback: String = ""): String =
+    envProps.getProperty(key)
+        ?: System.getenv(key)
+        ?: fallback
+
+buildkonfig {
+    packageName = "com.xergioalex.kmppttdynamics.config"
+    objectName = "BuildConfig"
+    // Intentionally NOT setting exposeObjectWithName: that generates a
+    // @JsExport-decorated object, and @JsExport on a standalone object
+    // is rejected by the Kotlin/Wasm compiler.
+
+    defaultConfigs {
+        buildConfigField(FieldSpec.Type.STRING, "SUPABASE_URL", envOrSystem("SUPABASE_URL"))
+        buildConfigField(FieldSpec.Type.STRING, "SUPABASE_PUBLISHABLE_KEY", envOrSystem("SUPABASE_PUBLISHABLE_KEY"))
     }
 }

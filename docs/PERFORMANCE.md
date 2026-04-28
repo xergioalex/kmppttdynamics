@@ -19,14 +19,14 @@ A type is **stable** if Compose can compare its instances cheaply and trust they
 A type is **unstable** if any property is `var`, or it contains a non-stable type (collections by default).
 
 ```kotlin
-data class Task(
+data class MeetupParticipant(
     val id: String,
-    val title: String,
-    val done: Boolean,
+    val displayName: String,
+    val isOnline: Boolean,
 )   // ✅ stable
 
-data class TaskList(
-    var items: List<Task>,
+data class ParticipantsView(
+    var items: List<MeetupParticipant>,
 )   // ❌ unstable — `var` and `List` is unstable by default
 ```
 
@@ -36,7 +36,7 @@ When the compiler can't infer stability:
 
 ```kotlin
 @Immutable
-data class TaskList(val items: List<Task>)
+data class ParticipantsView(val items: List<MeetupParticipant>)
 ```
 
 `@Immutable` is a contract — you're promising Compose the type never changes. `@Stable` is weaker — instances are comparable but may change in stability-tracked ways.

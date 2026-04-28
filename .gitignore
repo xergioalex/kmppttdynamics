@@ -18,6 +18,13 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
 
+# Local secrets (Supabase URL / anon key, db connection for migrations).
+# .env.example IS committed; .env is not.
+.env
+.env.local
+.env.*.local
+
 # Scratch workspace for agents and developers (see AGENTS.md)
 tmp/*
 !tmp/.gitkeep
+.env

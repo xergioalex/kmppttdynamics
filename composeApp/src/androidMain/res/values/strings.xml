@@ -1,5 +1,3 @@
 <resources>
-    <!-- FORK-RENAME: app_name is the Android launcher label. Change to your product's
-         display name when forking. See docs/FORK_CUSTOMIZATION.md. -->
-    <string name="app_name">KMP Todo App</string>
+    <string name="app_name">PTT Dynamics</string>
 </resources>

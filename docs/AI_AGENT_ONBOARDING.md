@@ -5,7 +5,7 @@ Whether you're Claude Code, Cursor, Codex, Gemini, GitHub Copilot, or any other 
 ## In one minute
 
 1. **Read [`AGENTS.md`](../AGENTS.md)** — the non-negotiable rules. Don't skip it.
-2. **This is a Kotlin Multiplatform / Compose Multiplatform starter.** One shared `:composeApp` module produces apps for Android, iOS, Desktop JVM, Web JS, and Web Wasm.
+2. **This is a Kotlin Multiplatform / Compose Multiplatform realtime meetup app (Pereira Tech Talks Dynamics).** One shared `:composeApp` module produces apps for Android, iOS, Desktop JVM, Web JS, and Web Wasm. Supabase Postgres + Realtime is the backend.
 3. **`commonMain` is where new code goes.** Drop into a platform source set only when forced.
 4. **Versions live in `gradle/libs.versions.toml`** — never inline a version string.
 5. **Build inner loop:** `./gradlew :composeApp:run` (Desktop hot reload) or `./gradlew :composeApp:jvmTest` (fast tests).
@@ -50,7 +50,7 @@ Run the pre-commit checklist from `AGENTS.md`:
 
 ### Adding shared logic
 
-`composeApp/src/commonMain/kotlin/com/xergioalex/kmptodoapp/<feature>/<File>.kt` — pure Kotlin, no platform deps. Add a test in the matching path under `commonTest/`.
+`composeApp/src/commonMain/kotlin/com/xergioalex/kmppttdynamics/<feature>/<File>.kt` — pure Kotlin, no platform deps. Add a test in the matching path under `commonTest/`.
 
 ### Adding a screen
 

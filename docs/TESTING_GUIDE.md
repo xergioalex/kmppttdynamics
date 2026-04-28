@@ -1,6 +1,6 @@
 # Testing Guide
 
-How to write and run tests in KMPTodoApp. The starter ships with `kotlin.test` only — that's enough for shared logic. Add UI testing libraries when you start needing them.
+How to write and run tests in KMPPTTDynamics. The starter ships with `kotlin.test` only — that's enough for shared logic. Add UI testing libraries when you start needing them.
 
 ## Where tests live
 
@@ -22,7 +22,7 @@ The starter currently has only `commonTest`. Add the others on demand — the so
 ./gradlew :composeApp:jvmTest                  # Fastest — recommended default
 ./gradlew :composeApp:testDebugUnitTest        # Android unit
 ./gradlew :composeApp:iosSimulatorArm64Test    # iOS simulator
-./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmptodoapp.GreetingTest.greetsCurrentPlatform"
+./gradlew :composeApp:jvmTest --tests "com.xergioalex.kmppttdynamics.ComposeAppCommonTest.joinCodeIsSixCharsAlphanumeric"
 ./gradlew :composeApp:jvmTest --continuous     # Watch mode
 ```
 
@@ -30,31 +30,30 @@ Reports land at `composeApp/build/reports/tests/<task>/index.html`.
 
 ## Conventions
 
-1. **Mirror the production package** — `commonTest/kotlin/com/xergioalex/kmptodoapp/Greeting.kt` becomes `commonTest/kotlin/com/xergioalex/kmptodoapp/GreetingTest.kt`
-2. **Class name = production class + `Test`** (`Greeting` → `GreetingTest`)
-3. **Method name describes the behavior** — `returnsHelloWithPlatformName`. Keep them in `camelCase` for portability across Native/Wasm runners.
+1. **Mirror the production package** — `commonTest/kotlin/com/xergioalex/kmppttdynamics/JoinCodeGenerator.kt` becomes `commonTest/kotlin/com/xergioalex/kmppttdynamics/JoinCodeGeneratorTest.kt`
+2. **Class name = production class + `Test`** (`JoinCodeGenerator` → `JoinCodeGeneratorTest`)
+3. **Method name describes the behavior** — `joinCodeIsSixCharsAlphanumeric`. Keep them in `camelCase` for portability across Native/Wasm runners.
 4. **Arrange / Act / Assert** structure with a blank line between sections
 5. **One behavior per test method.** If a test name needs "and", split it.
 6. **No shared mutable state** between tests — tear down or use fresh instances each test
 
 ```kotlin
-package com.xergioalex.kmptodoapp
+package com.xergioalex.kmppttdynamics
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
-class GreetingTest {
+class JoinCodeGeneratorTest {
 
     @Test
-    fun returnsHelloWithPlatformName() {
-        // Arrange
-        val greeting = Greeting()
-
+    fun joinCodeIsSixCharsAlphanumeric() {
         // Act
-        val result = greeting.greet()
+        val code = JoinCodeGenerator.generate()
 
         // Assert
-        assertEquals("Hello, ${getPlatform().name}!", result)
+        assertEquals(6, code.length)
+        assertTrue(code.all { it.isLetterOrDigit() && (it.isDigit() || it.isUpperCase()) })
     }
 }
 ```
@@ -95,12 +94,12 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class TaskRepositoryTest {
+class MeetupRepositoryTest {
     @Test
-    fun loadsTasks() = runTest {
-        val repo = TaskRepository(FakeApi())
-        val tasks = repo.list()
-        assertEquals(3, tasks.size)
+    fun listsLiveMeetups() = runTest {
+        val repo = MeetupRepository(FakeSupabaseClient())
+        val live = repo.listLive()
+        assertEquals(3, live.size)
     }
 }
 ```
@@ -130,11 +129,12 @@ import androidx.compose.ui.test.runComposeUiTest
 import kotlin.test.Test
 
 @OptIn(ExperimentalTestApi::class)
-class AppTest {
+class HomeScreenTest {
     @Test
-    fun appShowsButton() = runComposeUiTest {
-        setContent { App() }
-        onNodeWithText("Click me!").assertIsDisplayed()
+    fun homeShowsCreateMeetupButton() = runComposeUiTest {
+        val container = AppContainer(settings = AppSettings(MapSettings()))
+        setContent { App(container) }
+        onNodeWithText("Create meetup").assertIsDisplayed()
     }
 }
 ```
