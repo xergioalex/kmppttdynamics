@@ -279,6 +279,35 @@ begin
 end$$;
 
 ------------------------------------------------------------------
+-- Public API role grants
+------------------------------------------------------------------
+-- Tables created via direct SQL (instead of through the Supabase
+-- Dashboard) do NOT automatically grant base privileges to the
+-- `anon` and `authenticated` roles — those are the roles that the
+-- publishable key authenticates as. Without these grants every REST
+-- request returns Postgres error 42501 "permission denied for table
+-- X" before RLS even gets a chance to evaluate row visibility.
+--
+-- These statements are idempotent (`grant` re-runs cleanly) and
+-- safe to re-apply.
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on all tables in schema public
+    to anon, authenticated;
+
+-- Belt-and-braces: re-grant DELETE explicitly to `anon`. On at least one
+-- Supabase project we hit a state where the multi-action grant above
+-- landed SELECT/INSERT/UPDATE for anon but NOT delete (likely a
+-- side-effect of a Supabase event trigger that revokes destructive ops
+-- on table creation). The explicit re-grant is idempotent.
+grant delete on all tables in schema public to anon;
+
+-- Future-proof: any table added to `public` after this migration
+-- inherits the same grants automatically.
+alter default privileges in schema public
+    grant select, insert, update, delete on tables
+    to anon, authenticated;
+
+------------------------------------------------------------------
 -- Row Level Security (MVP — permissive, for demo only)
 ------------------------------------------------------------------
 -- WARNING: For production, tighten these policies. The MVP allows
