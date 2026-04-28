@@ -7,6 +7,7 @@ import com.xergioalex.kmppttdynamics.domain.MeetupStatus
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
+import com.xergioalex.kmppttdynamics.supabase.uniqueRealtimeTopic
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
@@ -86,7 +87,7 @@ class MeetupRepository(private val supabase: SupabaseClient) {
      * can come later.
      */
     fun observeAll(): Flow<HomeFeed> = flow {
-        val channel = supabase.channel("home_meetups")
+        val channel = supabase.channel(uniqueRealtimeTopic("home_meetups"))
         val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = TABLE
         }

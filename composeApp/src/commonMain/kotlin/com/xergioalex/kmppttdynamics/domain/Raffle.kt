@@ -1,6 +1,8 @@
 package com.xergioalex.kmppttdynamics.domain
 
 import kotlin.time.Instant
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -44,12 +46,17 @@ data class RaffleWinner(
     @SerialName("drawn_at") val drawnAt: Instant,
 )
 
+/**
+ * Insert payload for a new raffle. See [PollDraft] for why [status] is
+ * tagged with @EncodeDefault.
+ */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class RaffleDraft(
     @SerialName("meetup_id") val meetupId: String,
     @SerialName("created_by") val createdBy: String? = null,
     val title: String,
-    val status: RaffleStatus = RaffleStatus.OPEN,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS) val status: RaffleStatus = RaffleStatus.OPEN,
 )
 
 @Serializable

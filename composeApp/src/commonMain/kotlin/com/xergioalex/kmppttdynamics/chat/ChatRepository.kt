@@ -8,6 +8,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import com.xergioalex.kmppttdynamics.supabase.uniqueRealtimeTopic
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
@@ -56,7 +57,7 @@ class ChatRepository(private val supabase: SupabaseClient) {
             .decodeList()
 
     fun observe(meetupId: String): Flow<List<ChatMessage>> = flow {
-        val channel = supabase.channel("chat_$meetupId")
+        val channel = supabase.channel(uniqueRealtimeTopic("chat_$meetupId"))
         val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = TABLE
             filter("meetup_id", FilterOperator.EQ, meetupId)

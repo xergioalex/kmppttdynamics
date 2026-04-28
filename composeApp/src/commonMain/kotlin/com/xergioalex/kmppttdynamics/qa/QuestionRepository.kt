@@ -9,6 +9,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import com.xergioalex.kmppttdynamics.supabase.uniqueRealtimeTopic
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
@@ -88,7 +89,7 @@ class QuestionRepository(private val supabase: SupabaseClient) {
     }
 
     fun observe(meetupId: String): Flow<List<Question>> = flow {
-        val channel = supabase.channel("questions_$meetupId")
+        val channel = supabase.channel(uniqueRealtimeTopic("questions_$meetupId"))
         val questionChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = QUESTIONS
             filter("meetup_id", FilterOperator.EQ, meetupId)

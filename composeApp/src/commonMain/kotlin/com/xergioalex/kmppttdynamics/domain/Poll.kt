@@ -1,6 +1,8 @@
 package com.xergioalex.kmppttdynamics.domain
 
 import kotlin.time.Instant
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -45,12 +47,25 @@ data class PollVote(
     @SerialName("created_at") val createdAt: Instant,
 )
 
+/**
+ * Insert payload for a new poll.
+ *
+ * Fields like [status] and [isAnonymous] carry @EncodeDefault so the
+ * value is always sent over the wire even when it equals its Kotlin
+ * default. Without this annotation, kotlinx.serialization's default
+ * `encodeDefaults = false` policy would silently drop them and Postgres
+ * would fall back to the column default ('draft' / 'true'), which is
+ * the bug that left every freshly created poll stuck on Draft and
+ * therefore unvotable.
+ */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class PollDraft(
     @SerialName("meetup_id") val meetupId: String,
     @SerialName("created_by") val createdBy: String? = null,
     val question: String,
-    val status: PollStatus = PollStatus.OPEN,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS) val status: PollStatus = PollStatus.OPEN,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @SerialName("is_anonymous") val isAnonymous: Boolean = true,
 )
 

@@ -11,6 +11,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import com.xergioalex.kmppttdynamics.supabase.uniqueRealtimeTopic
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
@@ -63,17 +64,16 @@ class PollRepository(private val supabase: SupabaseClient) {
             ) { filter { eq("id", pollId) } }
     }
 
-    /** One vote per participant per poll. Re-voting overrides the previous choice. */
+    /**
+     * One vote per participant per poll. Re-voting overrides the
+     * previous choice. Implemented as upsert on the
+     * `(poll_id, participant_id)` unique index so changing the vote
+     * is one round trip instead of two.
+     */
     suspend fun vote(pollId: String, optionId: String, participantId: String) {
-        // delete-then-insert is simpler than upsert across drivers and the
-        // unique(poll_id, participant_id) constraint enforces correctness.
-        supabase.from(VOTES).delete {
-            filter {
-                eq("poll_id", pollId)
-                eq("participant_id", participantId)
-            }
+        supabase.from(VOTES).upsert(PollVoteDraft(pollId, optionId, participantId)) {
+            onConflict = "poll_id,participant_id"
         }
-        supabase.from(VOTES).insert(PollVoteDraft(pollId, optionId, participantId))
     }
 
     suspend fun listPolls(meetupId: String): List<Poll> =
@@ -102,7 +102,7 @@ class PollRepository(private val supabase: SupabaseClient) {
 
     /** Realtime feed of (poll → options → votes) snapshots for the meetup. */
     fun observeBoard(meetupId: String): Flow<PollBoard> = flow {
-        val channel = supabase.channel("polls_$meetupId")
+        val channel = supabase.channel(uniqueRealtimeTopic("polls_$meetupId"))
         val pollChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = POLLS
             filter("meetup_id", FilterOperator.EQ, meetupId)

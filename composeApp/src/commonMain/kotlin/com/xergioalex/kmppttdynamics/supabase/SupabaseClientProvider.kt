@@ -6,8 +6,24 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.realtime
+import io.github.jan.supabase.serializer.KotlinXSerializer
+import kotlinx.serialization.json.Json
 
 object SupabaseClientProvider {
+
+    /**
+     * Shared JSON instance with `encodeDefaults = true` so that data
+     * classes used for inserts include their default values in the
+     * payload sent to Postgrest. Without this, fields like
+     * `is_online = true` on [com.xergioalex.kmppttdynamics.domain.JoinRequest]
+     * would be omitted, and the column default would win — which is the
+     * root cause of the "0 online" bug we hit during room joins.
+     */
+    private val json = Json {
+        encodeDefaults = true
+        ignoreUnknownKeys = true
+        explicitNulls = false
+    }
 
     /**
      * `true` only if BuildKonfig was generated with both SUPABASE_URL and
@@ -29,6 +45,7 @@ object SupabaseClientProvider {
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY,
         ) {
+            defaultSerializer = KotlinXSerializer(json)
             install(Postgrest)
             install(Realtime)
         }

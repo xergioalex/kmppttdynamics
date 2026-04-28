@@ -11,6 +11,7 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import com.xergioalex.kmppttdynamics.supabase.uniqueRealtimeTopic
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
@@ -36,21 +37,38 @@ class RaffleRepository(private val supabase: SupabaseClient) {
             ) { select() }
             .decodeSingle()
 
+    /**
+     * Adds [participantId] to the entries of [raffleId]. Uses upsert
+     * with `ignoreDuplicates = true` so a second click after the user
+     * is already in the raffle (e.g. host pre-enrolled everyone) is a
+     * no-op instead of a 409 unique-violation error.
+     *
+     * Surfaces any other error (network, FK, RLS) so the UI can show
+     * a real message — wrapping this in a silent `runCatching` used to
+     * mask all failures, which made "I clicked Enter and nothing
+     * happened" impossible to diagnose.
+     */
     suspend fun enter(raffleId: String, participantId: String) {
-        runCatching {
-            supabase.from(ENTRIES).insert(RaffleEntryDraft(raffleId, participantId))
+        supabase.from(ENTRIES).upsert(RaffleEntryDraft(raffleId, participantId)) {
+            onConflict = "raffle_id,participant_id"
+            ignoreDuplicates = true
         }
     }
 
     /** Bulk-enroll every participant of [meetupId] into [raffleId]. Useful
-     *  when the host says "everyone in the room is in". */
+     *  when the host says "everyone in the room is in". Re-running it
+     *  after some participants are already enrolled is safe — duplicates
+     *  are ignored at the unique-index level. */
     suspend fun enrollAllParticipants(raffleId: String, meetupId: String) {
         val rows = supabase.from("meetup_participants")
             .select { filter { eq("meetup_id", meetupId) } }
             .decodeList<Participant>()
         if (rows.isEmpty()) return
         supabase.from(ENTRIES)
-            .insert(rows.map { RaffleEntryDraft(raffleId, it.id) })
+            .upsert(rows.map { RaffleEntryDraft(raffleId, it.id) }) {
+                onConflict = "raffle_id,participant_id"
+                ignoreDuplicates = true
+            }
     }
 
     /**
@@ -110,7 +128,7 @@ class RaffleRepository(private val supabase: SupabaseClient) {
             .decodeList()
 
     fun observeBoard(meetupId: String): Flow<RaffleBoard> = flow {
-        val channel = supabase.channel("raffles_$meetupId")
+        val channel = supabase.channel(uniqueRealtimeTopic("raffles_$meetupId"))
         val raffleChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = RAFFLES
             filter("meetup_id", FilterOperator.EQ, meetupId)
