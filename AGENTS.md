@@ -11,9 +11,12 @@
 | Category | Guide | Purpose |
 |----------|-------|---------|
 | **App overview** | [App Overview](docs/APP_OVERVIEW.md) | Feature roadmap, milestone plan, KMP patterns demonstrated |
+| **Identity & avatars** | [Identity & avatars](docs/IDENTITY_AND_AVATARS.md) | Cross-meetup profile, avatar picker, install client id, the three-layer identity model |
+| **Realtime patterns** | [Realtime patterns](docs/REALTIME_PATTERNS.md) | The `observe*()` template, the shared-channel teardown bug, the catch-up emit |
+| **Migrations** | [Migrations](docs/MIGRATIONS.md) | What each `supabase/migrations/*.sql` file does, in order, and the bug it prevents |
 | Architecture | [Architecture](docs/ARCHITECTURE.md) | Source sets, expect/actual, Compose Multiplatform, module layout |
 | Technologies | [Technologies](docs/TECHNOLOGIES.md) | Stack overview with versions and roles |
-| Standards | [Standards](docs/STANDARDS.md) | Kotlin/Compose conventions, naming, import order, expect/actual rules |
+| Standards | [Standards](docs/STANDARDS.md) | Kotlin/Compose conventions, naming, import order, expect/actual rules, serialization gotchas |
 | Commands | [Development Commands](docs/DEVELOPMENT_COMMANDS.md) | Gradle tasks, hot reload, single test runs |
 | Testing | [Testing](docs/TESTING_GUIDE.md) | kotlin.test setup, common vs platform tests, conventions |
 | Platforms | [Platforms](docs/PLATFORMS.md) | Per-platform notes: Android, iOS, Desktop JVM, Web JS, Web Wasm |
@@ -32,13 +35,24 @@
 
 **Core idea:** every meetup is a realtime room. The host activates dynamics — chat, raised hands, Q&A, polls, raffles, trivia, announcements — and all connected devices update instantly via Supabase Realtime.
 
-**Milestone 1 (current) implements:**
-- Create / list / join meetups
-- Realtime participant list inside the room
-- Host controls (start / pause / end)
-- 6-character join codes that exclude visually ambiguous glyphs (0/O/1/I)
+**Milestones M1–M6 (implemented):**
 
-Subsequent milestones layer chat, hand-raise, Q&A, polls, raffles, trivia, and reactions.
+- **M1 — Rooms + participants**: Create / list / join meetups; realtime participant list with `is_online`; app-wide online counter on Home via Realtime Presence (`app_lobby` channel); host controls (start / pause / end).
+- **M2 — Chat + announcements**: Discord-style chat row with avatar + name + bubble; persistent "Send as announcement" toggle on the composer.
+- **M3 — Hand raise + Q&A**: Hand queue with avatar + status; Q&A row with avatar of asker + vote pill + upvotes.
+- **M4 — Polls**: anonymous + non-anonymous polls; host can vote; votes are mutable; creator info row with avatar.
+- **M5 — Raffles**: enter / enroll-all / draw / close; `EntryAvatarStack` of overlapping entrant avatars; 84 dp `WinnerReveal` with the winner's avatar.
+- **M6 — Cross-meetup profile (display name + unique avatar)**: first-launch onboarding screen with random unclaimed avatar; live avatar picker that locks taken avatars in real time; profile chip on Home opens the same picker for editing; the join screen is gone — `HomeViewModel.onEnterMeetup` auto-resolves the seat using the install-stable client id and the stored profile.
+
+**Identity model** (full detail in [Identity & avatars](docs/IDENTITY_AND_AVATARS.md)):
+
+- **Install client id** — stable random hex string in `AppSettings.installClientId()`, persisted by `multiplatform-settings`. Survives app restarts; used as the presence key, the `app_users` PK, and the `client_id` on every `meetup_participants` row this device creates.
+- **App user** — `public.app_users` row keyed by `client_id`, holding the user's `display_name` and globally-unique `avatar_id`.
+- **Meetup participant** — `public.meetup_participants` row keyed by `(meetup_id, client_id)` (partial unique index). At most one row per device per meetup; re-joining always lands on the same row.
+
+**6-character join codes** still exclude visually ambiguous glyphs (`0/O/1/I`).
+
+Subsequent milestones layer trivia, reactions, leaderboard, QR check-in, and Supabase Auth.
 
 > Read [App Overview](docs/APP_OVERVIEW.md) for the full milestone plan and which KMP patterns each piece exercises.
 
@@ -48,8 +62,8 @@ Subsequent milestones layer chat, hand-raise, Q&A, polls, raffles, trivia, and r
 - **Compose Multiplatform 1.10.3** — Shared declarative UI
 - **Material 3 1.10.0-alpha05** — Design system
 - **AndroidX Lifecycle 2.10.0** — `viewmodel-compose`, `runtime-compose`
-- **supabase-kt 3.6.0** — Postgrest queries + Realtime subscriptions
-- **Ktor 3.0.3** — Transport for supabase-kt (CIO on Android/JVM, Darwin on iOS, JS engine on Web)
+- **supabase-kt 3.6.0** — Postgrest queries + Realtime subscriptions (incl. Realtime **Presence** for the app-wide lobby counter)
+- **Ktor 3.2.3** — Transport for supabase-kt (CIO on Android/JVM, Darwin on iOS, JS engine on Web). **Must stay on the same minor as supabase-kt's BOM** — older Ktor crashes the iOS Darwin engine at runtime with `IrLinkageError: Function 'dropCompressionHeaders' can not be called`.
 - **kotlinx-serialization 1.7.3** — JSON encoding for Postgrest
 - **kotlinx-coroutines 1.10.2** — Core + `kotlinx-coroutines-swing` (Desktop dispatcher)
 - **BuildKonfig 0.17.1** — Generates a multiplatform `BuildConfig` from `.env` values
@@ -70,21 +84,25 @@ Subsequent milestones layer chat, hand-raise, Q&A, polls, raffles, trivia, and r
 composeApp/
 └── src/
     ├── commonMain/kotlin/com/xergioalex/kmppttdynamics/
-    │   ├── App.kt                         # Shared root + state-based routing
-    │   ├── AppContainer.kt                # DI-lite holder (settings + lazy repos)
+    │   ├── App.kt                         # Shared root + onboarding gate + state-based routing
+    │   ├── AppContainer.kt                # DI-lite holder (settings + lazy repos + presence tracker)
     │   ├── JoinCodeGenerator.kt           # Stage-friendly 6-char codes
-    │   ├── domain/                        # Meetup, MeetupParticipant, MeetupStatus, ParticipantRole
-    │   ├── supabase/                      # SupabaseClientProvider (lazy, BuildKonfig-driven)
-    │   ├── meetups/                       # MeetupRepository (REST + realtime channel)
-    │   ├── participants/                  # ParticipantRepository (REST + realtime channel)
-    │   ├── settings/AppSettings.kt        # theme + last display name
-    │   └── ui/{home,create,join,room,theme,components}
+    │   ├── domain/                        # Meetup, AppUser, MeetupParticipant, … (kotlinx-serialization)
+    │   ├── supabase/                      # SupabaseClientProvider, RealtimeChannelNames
+    │   ├── appusers/                      # AppUserRepository (cross-meetup profile + realtime)
+    │   ├── meetups/                       # MeetupRepository
+    │   ├── participants/                  # ParticipantRepository (find-then-update join, claim, role mgmt)
+    │   ├── chat/, handraise/, qa/, polls/, raffles/   # one repo per realtime feed
+    │   ├── presence/                      # GlobalPresenceTracker (Realtime Presence on app_lobby)
+    │   ├── settings/AppSettings.kt        # theme + profile + per-meetup cache + installClientId
+    │   └── ui/{onboarding,home,create,room,theme,components}
     ├── commonMain/composeResources/
     │   ├── drawable/{ptt_logo_vertical.png, ptt_logo_horizontal.png}
+    │   ├── files/avatars/                 # 132 bundled PNGs (192×192, ~3.5 MB total)
     │   ├── values/strings.xml             # i18n EN
     │   └── values-es/strings.xml          # i18n ES
-    ├── commonTest/                        # kotlin.test
-    ├── androidMain/                       # MainActivity, Platform.android.kt, launcher icons (PTT logo)
+    ├── commonTest/                        # kotlin.test (JoinCodeGeneratorTest, SerializationTest)
+    ├── androidMain/                       # PttApplication + MainActivity (container singleton)
     ├── iosMain/                           # MainViewController, Platform.ios.kt
     ├── jvmMain/                           # main.kt + Platform.jvm.kt
     ├── webMain/                           # ComposeViewport entry shared by JS + Wasm
@@ -93,6 +111,7 @@ composeApp/
 
 iosApp/                          # Xcode project consuming the ComposeApp framework
 supabase/migrations/             # Idempotent SQL — apply with ./scripts/supabase_apply.sh
+                                  # See docs/MIGRATIONS.md for what each file does
 scripts/supabase_apply.sh
 .env.example                     # Template — copy to .env (gitignored)
 gradle/libs.versions.toml        # Single version catalog — pin all dependencies here
@@ -104,6 +123,7 @@ local.properties                 # Android SDK path (gitignored)
 docs/                            # Project documentation
 .claude/                         # Claude Code skills, agents, and command reference
 assets/pereiratechtalks/         # Source logos used for branding
+assets/avatars/all/              # 132 source avatar PNGs (resized + optimised into composeResources/files/avatars)
 tmp/                             # Scratch workspace (git-ignored)
 ```
 
@@ -179,12 +199,46 @@ Use Compose Multiplatform resources — **not** per-platform asset folders — f
 
 Every repository that powers a live UI exposes a `Flow<…>` that:
 
-1. Subscribes to a `supabase_realtime` channel filtered by `meetup_id`.
-2. Emits an initial REST snapshot.
-3. Re-emits a fresh snapshot on every Postgres change.
-4. **Unsubscribes** the channel when the flow is cancelled (use `try { … } finally { withContext(NonCancellable) { channel.unsubscribe() } }`).
+1. Builds the channel name with **`uniqueRealtimeTopic(base)`** from `supabase/RealtimeChannelNames.kt`. Calling `supabase.channel("static_name")` shares a `RealtimeChannel` instance across consumers; the first to cancel runs `unsubscribe()` and silences every other listener — this was the root cause of the avatar picker freezing on second open.
+2. Subscribes to a `supabase_realtime` channel filtered by `meetup_id` for room-scoped feeds. (`AppUserRepository.observeAll()` is the only intentionally-global feed.)
+3. Emits an initial REST snapshot.
+4. **Re-fetches once after a short delay** to catch any UPDATE that landed between `subscribe()` and the websocket's actual subscription handshake — this race was the root cause of the original "0 online" bug. See `ParticipantRepository.observe()` for the canonical implementation.
+5. Re-emits a fresh snapshot on every Postgres change.
+6. **Unsubscribes** the channel when the flow is cancelled (use `try { … } finally { withContext(NonCancellable) { channel.unsubscribe() } }`).
 
-Existing examples: `MeetupRepository.observeAll()`, `ParticipantRepository.observe(meetupId)`. Match this pattern for chat, hand-raise, Q&A, polls, raffles.
+The full template, every gotcha, and an audit checklist live in [Realtime patterns](docs/REALTIME_PATTERNS.md). Read it before adding a new feed.
+
+App-wide presence (e.g. the global "X online in the app" counter on Home) uses **Realtime Presence** on a single `app_lobby` channel via `GlobalPresenceTracker`, not a Postgres table. Presence auto-drops disconnected clients, so we don't need a heartbeat or a server-side cleanup job. The presence channel is the **only** intentional shared-name channel — see the file's docstring for why the order of operations (collect first, `delay(150)`, then `subscribe`) is non-negotiable.
+
+Existing examples: `MeetupRepository.observeAll()`, `ParticipantRepository.observe(meetupId)`, `GlobalPresenceTracker`. Match this pattern for chat, hand-raise, Q&A, polls, raffles.
+
+#### kotlinx.serialization gotcha — `encodeDefaults`
+
+`kotlinx.serialization` does **not** include fields with default values in the JSON output by default. Every insert via Postgrest goes through the Supabase client's `KotlinXSerializer`, so:
+
+- `SupabaseClientProvider` configures its `Json` instance with `encodeDefaults = true` as a safety net.
+- **Every defaultable field that must reach the server must also carry `@EncodeDefault(EncodeDefault.Mode.ALWAYS)`.** The annotation is processed by the kotlinx-serialization compiler plugin and is honoured by any `Json` instance — your wire format is no longer at the mercy of a runtime config that could be lost in a refactor.
+
+Examples in this codebase: `JoinRequest.isOnline`, `PollDraft.status`, `PollDraft.isAnonymous`, `RaffleDraft.status`, `AppUserDraft.avatarId`. If you add a new `@Serializable` insert payload, mirror the pattern.
+
+#### Identity is keyed by `client_id`, not `participant_id`
+
+The user's identity has three layers (full detail in [Identity & avatars](docs/IDENTITY_AND_AVATARS.md)):
+
+| Layer | Storage | Stable across |
+|---|---|---|
+| Install client id | `AppSettings.installClientId()` | App restarts ✓ · Hot reloads ✓ |
+| App user (profile) | `public.app_users` row keyed by `client_id` (PK) | Same install ✓ |
+| Meetup participant | `public.meetup_participants` row keyed by `(meetup_id, client_id)` (partial unique idx) | Same install + meetup ✓ |
+
+When adding a feature that "belongs to a user", use `client_id` as the join key, not `participant_id`. To resolve a participant's display avatar, walk through:
+
+```kotlin
+val participant = participantsById[someParticipantId]
+val avatarId = participant?.clientId?.let { usersByClientId[it]?.avatarId }
+```
+
+`RoomViewModel.usersByClientId` is the canonical map — every room tab reads it. The first-launch onboarding screen + edit-profile flow live in `ui/onboarding/` and are gated by `App.kt`'s `if (profile == null)` check.
 
 ### 9. Supabase Trust Boundaries (MANDATORY)
 

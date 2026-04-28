@@ -55,27 +55,32 @@ KMPPTTDynamics/
 │   └── src/
 │       ├── commonMain/
 │       │   ├── kotlin/com/xergioalex/kmppttdynamics/
-│       │   │   ├── App.kt                 # @Composable App(container) — entry composable
-│       │   │   ├── AppContainer.kt        # DI-lite holder (settings + lazy repos)
+│       │   │   ├── App.kt                 # @Composable App(container) — entry composable + onboarding gate
+│       │   │   ├── AppContainer.kt        # DI-lite holder (settings + lazy repos + presence tracker)
 │       │   │   ├── JoinCodeGenerator.kt   # 6-char codes excluding 0/O/1/I
 │       │   │   ├── Platform.kt            # expect fun getPlatform()
-│       │   │   ├── domain/                # Meetup, MeetupParticipant, MeetupStatus, ParticipantRole
-│       │   │   ├── supabase/              # SupabaseClientProvider (lazy, BuildKonfig-driven)
+│       │   │   ├── domain/                # Meetup, AppUser, MeetupParticipant, … (kotlinx-serialization)
+│       │   │   ├── supabase/              # SupabaseClientProvider, RealtimeChannelNames (uniqueRealtimeTopic)
+│       │   │   ├── appusers/              # AppUserRepository — cross-meetup profile + realtime
 │       │   │   ├── meetups/               # MeetupRepository — REST + realtime channel
-│       │   │   ├── participants/          # ParticipantRepository — REST + realtime channel
-│       │   │   ├── settings/AppSettings   # theme + last display name (multiplatform-settings)
-│       │   │   └── ui/                    # home, create, join, room, theme, components
+│       │   │   ├── participants/          # ParticipantRepository — find-then-update join, claim, role
+│       │   │   ├── chat/, handraise/, qa/, polls/, raffles/  # one repo per realtime feed
+│       │   │   ├── presence/              # GlobalPresenceTracker (Realtime Presence on `app_lobby`)
+│       │   │   ├── settings/AppSettings   # theme + profile + per-meetup cache + installClientId
+│       │   │   └── ui/                    # onboarding, home, create, room, theme, components
 │       │   └── composeResources/
 │       │       ├── drawable/              # ptt_logo_vertical.png, ptt_logo_horizontal.png
+│       │       ├── files/avatars/         # 132 bundled PNGs (192×192, ~3.5 MB total)
 │       │       ├── values/strings.xml     # English
 │       │       └── values-es/strings.xml  # Spanish
-│       ├── commonTest/kotlin/             # Shared kotlin.test tests (e.g. JoinCodeGeneratorTest)
+│       ├── commonTest/kotlin/             # Shared kotlin.test tests (e.g. JoinCodeGeneratorTest, SerializationTest)
 │       │
 │       ├── androidMain/
 │       │   ├── kotlin/com/xergioalex/kmppttdynamics/
-│       │   │   ├── MainActivity.kt    # ComponentActivity → setContent { App() }
+│       │   │   ├── PttApplication.kt  # Owns AppContainer (survives MainActivity recreation)
+│       │   │   ├── MainActivity.kt    # ComponentActivity → setContent { App((application as PttApplication).container) }
 │       │   │   └── Platform.android.kt   # actual fun getPlatform()
-│       │   ├── AndroidManifest.xml    # Single MainActivity, MAIN/LAUNCHER intent filter
+│       │   ├── AndroidManifest.xml    # PttApplication + single MainActivity
 │       │   └── res/                   # Android-only resources (icons, strings)
 │       │
 │       ├── iosMain/kotlin/com/xergioalex/kmppttdynamics/
@@ -214,7 +219,7 @@ struct ComposeView: UIViewControllerRepresentable {
 - Android: `compileSdk 36`, `minSdk 24`, `targetSdk 36`, Java 11; release build `isMinifyEnabled = false` (flip on for production — see [Performance](PERFORMANCE.md))
 - Desktop: target formats `Dmg`, `Msi`, `Deb`; main class `com.xergioalex.kmppttdynamics.MainKt`
 - BuildKonfig (`com.codingfeline.buildkonfig`): generates a `BuildConfig` Kotlin object at `com.xergioalex.kmppttdynamics.config.BuildConfig` with `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` read from `.env` at the repo root (or env vars in CI). `exposeObjectWithName` is intentionally NOT set — the resulting `@JsExport` annotation breaks Kotlin/Wasm compilation on standalone objects.
-- ktor 3.0.3 engines per platform: CIO (Android + JVM), Darwin (iOS), JS (JS + Wasm). supabase-kt depends on these for transport.
+- ktor 3.2.3 engines per platform: CIO (Android + JVM), Darwin (iOS), JS (JS + Wasm). supabase-kt depends on these for transport. Ktor must stay on the minor that matches supabase-kt's BOM — older minors (e.g. 3.0.3) crash the iOS framework at runtime with `IrLinkageError: dropCompressionHeaders`.
 
 `gradle.properties`:
 
@@ -233,24 +238,50 @@ Every screen that watches live data follows the same shape:
 
 ```kotlin
 fun observe(meetupId: String): Flow<List<X>> = flow {
-    val channel = supabase.channel("x_$meetupId")
+    val channel = supabase.channel(uniqueRealtimeTopic("x_$meetupId"))
     val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
         table = "x"
         filter("meetup_id", FilterOperator.EQ, meetupId)
     }
     channel.subscribe()
     try {
-        emit(fetch(meetupId))                        // initial REST snapshot
-        changes.collect { emit(fetch(meetupId)) }    // refresh on every change
+        emit(fetch(meetupId))                       // initial REST snapshot
+        kotlinx.coroutines.delay(750)               // catch-up window
+        emit(fetch(meetupId))                       // catch-up against JOIN-handshake race
+        changes.collect { emit(fetch(meetupId)) }   // refresh on every change
     } finally {
         withContext(NonCancellable) { channel.unsubscribe() }
     }
 }
 ```
 
-Reference implementations: `MeetupRepository.observeAll()`, `ParticipantRepository.observe(meetupId)`. Match this pattern when adding chat / hand-raise / Q&A / polls / raffles in M2–M5.
+Reference implementations: `MeetupRepository.observeAll()`, `ParticipantRepository.observe(meetupId)`, `AppUserRepository.observeAll()`. Eight repositories follow this template.
 
-The `try/finally` with `NonCancellable` is mandatory — without it, a cancelled flow leaks the Realtime subscription. ViewModels collect these flows via `viewModelScope.launch` so cancellation flows naturally on screen exit.
+Three pieces of the template are non-negotiable:
+
+1. **`uniqueRealtimeTopic(base)` for every channel name.** Calling `supabase.channel("static_name")` makes supabase-kt return a shared `RealtimeChannel`; the first consumer to cancel runs `unsubscribe()` and silences every other listener. This was the root cause of the avatar picker freezing on second open.
+2. **The 750 ms catch-up emit.** `subscribe()` is fire-and-forget; the websocket JOIN handshake completes asynchronously. Any UPDATE between the initial REST fetch and the handshake completion is delivered to a not-yet-listening channel and dropped. Re-fetching after a short delay closes the gap.
+3. **`try/finally` with `NonCancellable`.** Without it, a cancelled flow leaks the Realtime subscription. ViewModels collect these flows via `viewModelScope.launch` so cancellation flows naturally on screen exit; the cleanup itself must run inside a non-cancellable scope or it never reaches the wire.
+
+For the full background, gotchas, and an audit checklist when adding new feeds, read [Realtime patterns](REALTIME_PATTERNS.md). The Presence-based lobby counter (`GlobalPresenceTracker`) follows a different pattern — see that page for the differences.
+
+## Identity model
+
+The user's identity has three layers (full detail in [Identity & avatars](IDENTITY_AND_AVATARS.md)):
+
+| Layer | Storage | Example |
+|---|---|---|
+| Install client id | `AppSettings.installClientId()` (multiplatform-settings) | `5b40d1a37c83f2ee` |
+| App user | `public.app_users` row keyed by `client_id` | `(client_id, "Sergio", avatar_id = 42)` |
+| Meetup participant | `public.meetup_participants` row keyed by `(meetup_id, client_id)` (partial unique index) | `(meetup_id, client_id, role = 'host', is_online = true)` |
+
+The install client id is the spine. It's used as:
+
+- The presence key on the `app_lobby` Realtime Presence channel — so reconnects replace, not duplicate, the device.
+- The primary key of `app_users` — so changing your avatar is a single upsert.
+- The `client_id` on every `meetup_participants` row this device creates — so the partial unique index `(meetup_id, client_id)` makes "joining a meetup" idempotent at the DB layer (no duplicates after re-installs, hot reloads, or `MainActivity` recreation).
+
+`App.kt` reads `container.settings.profile: StateFlow<LocalProfile?>` and gates the entire post-onboarding UI on it. Until the user has picked a name + avatar (and the `app_users` row exists with the unique avatar id), no other screen renders. This is also why there is no longer a `JoinMeetupScreen` — the profile follows the user into every room and `HomeViewModel.onEnterMeetup` auto-joins.
 
 ## Mental model summary
 

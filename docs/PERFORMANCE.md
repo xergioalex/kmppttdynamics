@@ -172,6 +172,28 @@ The Wasm output is usually a few MB. To shrink:
 
 Content-hash all assets (the build does this) and serve `index.html` with `Cache-Control: no-cache`. Everything else can be `max-age=31536000, immutable`.
 
+## Avatar bundle
+
+The 132 avatars in `composeApp/src/commonMain/composeResources/files/avatars/` are part of the bundle on every platform. Source files in `assets/avatars/all/` are 318×318 PNGs (21 MB total — too big to ship). Each release of the avatar pack should pass through:
+
+```bash
+DEST=composeApp/src/commonMain/composeResources/files/avatars
+mkdir -p "$DEST"
+TMP=$(mktemp -d)
+for f in assets/avatars/all/*.png; do
+    sips -Z 192 "$f" --out "$TMP/$(basename "$f")" >/dev/null
+done
+for f in "$TMP"/*.png; do
+    pngquant --quality=70-90 --speed 1 \
+        --output "$DEST/$(basename "$f")" --force "$f" \
+        || cp "$f" "$DEST/$(basename "$f")"
+done
+```
+
+(macOS-only; on other systems substitute ImageMagick / Sharp.) The pipeline above takes 21 MB → 3.5 MB at 192×192 with negligible visible quality loss. Always re-run it before committing new avatars and confirm the bundle stays small.
+
+`AvatarImage` decodes each PNG once via `Res.readBytes(...) + decodeToImageBitmap()`, then `remember`s the resulting `ImageBitmap` — re-composition inside the picker grid (132 cells) doesn't re-decode. Keep that pattern when adding any other bundled-image lookup.
+
 ## Desktop specifics
 
 ### Hot reload caveats

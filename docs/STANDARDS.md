@@ -28,12 +28,15 @@ Single root package: `com.xergioalex.kmppttdynamics`. Subpackages by **feature**
 
 ```
 com.xergioalex.kmppttdynamics
-├── domain/                # Cross-cutting models (Meetup, MeetupParticipant, …)
-├── supabase/              # SupabaseClientProvider
+├── domain/                # Cross-cutting models (Meetup, MeetupParticipant, AppUser, …)
+├── supabase/              # SupabaseClientProvider, RealtimeChannelNames
+├── appusers/              # AppUserRepository (cross-meetup profile)
 ├── meetups/               # MeetupRepository
 ├── participants/          # ParticipantRepository
-├── settings/              # AppSettings (theme, last display name)
-└── ui/                    # home, create, join, room, theme, components
+├── chat/, handraise/, qa/, polls/, raffles/   # one repo per realtime feed
+├── presence/              # GlobalPresenceTracker (Realtime Presence)
+├── settings/              # AppSettings (theme, profile, install client id, per-meetup cache)
+└── ui/                    # onboarding, home, create, room, theme, components
 ```
 
 Avoid generic top-level buckets like `models/`, `utils/`, `viewmodels/` — they rot fast.
@@ -158,11 +161,35 @@ There's no multiplatform logger wired in. Use `println` while bootstrapping. Onc
 
 When adding a new live feed against a Supabase table:
 
-1. Subscribe to `supabase_realtime` for that table, **always filtered by `meetup_id`** so two concurrent rooms don't cross-contaminate.
-2. Wrap the subscription in `try { … } finally { withContext(NonCancellable) { channel.unsubscribe() } }` so cancellations don't leak channels.
-3. For the simplest correct implementation, re-fetch via REST on every change instead of diff-applying — it's cheap at room sizes we expect, and keeps state derivation linear.
+1. **Always wrap the channel topic in `uniqueRealtimeTopic(base)`** (from `supabase/RealtimeChannelNames.kt`). Calling `supabase.channel("static_name")` shares a `RealtimeChannel` instance across consumers; the first to cancel runs `unsubscribe()` and silences every other listener. See [Realtime patterns](REALTIME_PATTERNS.md#1-why-the-channel-name-must-be-unique-per-call).
+2. Subscribe to `supabase_realtime` for that table, **filter by `meetup_id`** when the feed is room-scoped so two concurrent rooms don't cross-contaminate. (`AppUserRepository.observeAll()` is the only intentionally-global feed.)
+3. Wrap the subscription in `try { … } finally { withContext(NonCancellable) { channel.unsubscribe() } }` so cancellations don't leak channels.
+4. **Catch-up emit**: between the first `emit(list(...))` and `changes.collect { … }`, sleep `kotlinx.coroutines.delay(750)` and `emit(list(...))` a second time. The websocket JOIN handshake completes asynchronously and any UPDATE that lands in the gap would otherwise be missed.
+5. For the simplest correct implementation, re-fetch via REST on every change instead of diff-applying — it's cheap at room sizes we expect, and keeps state derivation linear.
 
-Reference implementations: `MeetupRepository.observeAll()`, `ParticipantRepository.observe(meetupId)`. Both follow [Architecture → Realtime data flow](ARCHITECTURE.md).
+Reference implementations: `MeetupRepository.observeAll()`, `ParticipantRepository.observe(meetupId)`, `AppUserRepository.observeAll()`. Full template + every gotcha: [Realtime patterns](REALTIME_PATTERNS.md).
+
+## Serialization
+
+We talk to Postgrest via `kotlinx.serialization` (configured in `SupabaseClientProvider`). Two non-obvious rules apply:
+
+1. **Annotate every defaultable field that must reach the server with `@EncodeDefault(EncodeDefault.Mode.ALWAYS)`.** kotlinx.serialization's default policy is `encodeDefaults = false` — fields that equal their declared default are **silently dropped from the JSON**. The server then falls back to the column default, which is rarely what you want.
+
+   Examples in this codebase: `JoinRequest.isOnline`, `PollDraft.status`, `PollDraft.isAnonymous`, `RaffleDraft.status`, `AppUserDraft.avatarId`. Each carries:
+
+   ```kotlin
+   @OptIn(ExperimentalSerializationApi::class)
+   @Serializable
+   data class PollDraft(
+       …,
+       @EncodeDefault(EncodeDefault.Mode.ALWAYS) val status: PollStatus = PollStatus.OPEN,
+       @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+       @SerialName("is_anonymous") val isAnonymous: Boolean = true,
+   )
+   ```
+
+   The `SupabaseClientProvider` `Json` instance also sets `encodeDefaults = true` as a belt-and-suspenders default, but `@EncodeDefault` is what guarantees the field reaches the wire in any code path.
+2. **Snake-case column names need explicit `@SerialName`.** Postgrest column names like `is_online`, `meetup_id`, `display_name`, `client_id` must be tagged with `@SerialName("…")` on the Kotlin field; we don't rely on a global naming strategy.
 
 ## Tests
 

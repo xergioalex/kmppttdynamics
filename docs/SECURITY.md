@@ -30,14 +30,19 @@ These values are read only by `scripts/supabase_apply.sh` and the Supabase CLI o
 
 ### Row Level Security
 
-The `supabase/migrations/001_init.sql` ships with **permissive** RLS — anyone with the publishable key can read or write any row in any table. That's appropriate for an internal demo, **not** for public deployment. Before going live:
+The migrations ship with **permissive** RLS for every table — anyone with the publishable key can read or write any row. That's appropriate for an internal demo, **not** for public deployment. Before going live:
 
 1. Replace the catch-all `for select using (true)` policies with policies that derive identity from `auth.uid()` (requires Supabase Auth).
-2. Make host-only operations (`meetups.status` updates, `polls.create`, `raffles.draw`) host-only at the policy level — UI-side enforcement isn't enough.
+2. Make host-only operations host-only at the policy level — UI-side enforcement isn't enough. The list:
+   - `meetups.status` updates → only the host of the row.
+   - `meetup_participants.role` updates → only an existing host of the same meetup (otherwise anyone can promote themselves).
+   - `polls.create`, `polls.close`, `chat_messages.status = 'hidden'`, `questions.status` mutations → host-only.
+   - `raffles.draw_winner`, `raffle_winners` inserts → host-only.
 3. Move raffle draws into a `SECURITY DEFINER` SQL function or an Edge Function so the host can't re-roll until they get a winner they like.
 4. Rate-limit chat / question inserts (Supabase Edge Functions or a database trigger).
+5. **`app_users.avatar_id` is globally unique by DB constraint** (good!) but the table currently allows anyone with the publishable key to update *any other user's* row. Tighten to `using (auth.uid() = client_id)` once auth lands, or move profile updates into a SQL function that checks ownership via session-context.
 
-The migration calls these out with `WARNING:` comments next to the relevant blocks.
+The migrations call these out with `WARNING:` comments next to the relevant blocks. See [Migrations](MIGRATIONS.md) for the full file-by-file story of what's currently permissive.
 
 ### Realtime channels and security
 

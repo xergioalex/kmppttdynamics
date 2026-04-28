@@ -66,15 +66,31 @@ These are the **multiplatform** ports published by JetBrains under `org.jetbrain
 | Library | Version | Where | Role |
 |---|---|---|---|
 | `io.github.jan-tennert.supabase:postgrest-kt` | 3.6.0 | `commonMain` | Type-safe REST client for Supabase Postgres |
-| `io.github.jan-tennert.supabase:realtime-kt` | 3.6.0 | `commonMain` | Realtime channel + `postgresChangeFlow` subscription |
-| `io.ktor:ktor-client-core` | 3.0.3 | `commonMain` | HTTP transport interface used by supabase-kt |
-| `io.ktor:ktor-client-cio` | 3.0.3 | `androidMain` + `jvmMain` | CIO engine for Android / Desktop |
-| `io.ktor:ktor-client-darwin` | 3.0.3 | `iosMain` | Native iOS engine |
-| `io.ktor:ktor-client-js` | 3.0.3 | `jsMain` + `wasmJsMain` | Browser engine for both web targets |
+| `io.github.jan-tennert.supabase:realtime-kt` | 3.6.0 | `commonMain` | Realtime channels (`postgresChangeFlow` + Presence) |
+| `io.ktor:ktor-client-core` | **3.2.3** | `commonMain` | HTTP transport interface used by supabase-kt |
+| `io.ktor:ktor-client-cio` | 3.2.3 | `androidMain` + `jvmMain` | CIO engine for Android / Desktop |
+| `io.ktor:ktor-client-darwin` | 3.2.3 | `iosMain` | Native iOS engine |
+| `io.ktor:ktor-client-js` | 3.2.3 | `jsMain` + `wasmJsMain` | Browser engine for both web targets |
 | `org.jetbrains.kotlinx:kotlinx-serialization-json` | 1.7.3 | `commonMain` | JSON serialization for `@Serializable` domain models |
 | `org.jetbrains.kotlinx:kotlinx-datetime` | 0.7.1 | `commonMain` | Pairs with `kotlin.time.Instant` for typed timestamps from Postgres `timestamptz` |
 
-The Supabase client is created lazily by `SupabaseClientProvider` from `BuildConfig.SUPABASE_URL` + `BuildConfig.SUPABASE_PUBLISHABLE_KEY`, so the dependency tree initialises only when the first repository call needs it.
+The Supabase client is created lazily by `SupabaseClientProvider` from `BuildConfig.SUPABASE_URL` + `BuildConfig.SUPABASE_PUBLISHABLE_KEY`, so the dependency tree initialises only when the first repository call needs it. The `KotlinXSerializer` is configured with `Json { encodeDefaults = true; ignoreUnknownKeys = true; explicitNulls = false }` — defaultable fields on insert payloads must also be tagged with `@EncodeDefault(EncodeDefault.Mode.ALWAYS)` for belt-and-suspenders, see [Standards → Serialization](STANDARDS.md#serialization).
+
+> ⚠ **Ktor must stay on the same minor as supabase-kt's BOM.** supabase-kt 3.6.0 ships with internal references to Ktor 3.2.x APIs (`dropCompressionHeaders` on the Darwin engine). Pinning Ktor to an older minor (e.g. 3.0.3) makes the Kotlin/Native iOS framework crash at runtime with `IrLinkageError: Function 'dropCompressionHeaders' can not be called`. Always bump the two together.
+
+## Multiplatform Settings
+
+| Library | Version | Role |
+|---|---|---|
+| `com.russhwolf:multiplatform-settings` | 1.2.0 | Persistent key-value storage with per-platform actuals (SharedPreferences on Android, NSUserDefaults on iOS, java.util.prefs on JVM, localStorage on Web) |
+| `com.russhwolf:multiplatform-settings-no-arg` | 1.2.0 | Convenience constructor for the default backing store on each platform |
+
+`AppSettings` (in `commonMain/settings/`) wraps the library and exposes:
+
+- `themeMode: StateFlow<ThemeMode>`
+- `profile: StateFlow<LocalProfile?>` — drives the onboarding gate in `App.kt`
+- `installClientId(): String` — install-stable random hex string used as the presence key, `app_users` PK, and `meetup_participants.client_id`
+- `participantIdFor(meetupId)` / `setParticipantIdFor(meetupId, id)` — local cache of "the participant row this device owns in this meetup"
 
 ## Activity (Android-only)
 
@@ -122,7 +138,7 @@ These are present in `libs.versions.toml` for convenience when you start adding 
 
 | Library | Version | Role |
 |---|---|---|
-| `com.russhwolf:multiplatform-settings` | 1.2.0 | Persistent key-value (theme + last display name). Backed by `SharedPreferences` (Android), `NSUserDefaults` (iOS), `java.util.prefs` (JVM), `localStorage` (Web) — wired in each platform's `main` |
+| `com.russhwolf:multiplatform-settings` | 1.2.0 | Persistent key-value: theme, profile (display name + avatar), per-meetup participant cache, install client id. Backed by `SharedPreferences` (Android), `NSUserDefaults` (iOS), `java.util.prefs` (JVM), `localStorage` (Web) — wired in each platform's `main`. See [Identity & avatars](IDENTITY_AND_AVATARS.md). |
 
 ## Build-time configuration (BuildKonfig)
 
