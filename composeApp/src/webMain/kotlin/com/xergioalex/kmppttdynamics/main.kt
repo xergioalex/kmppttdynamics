@@ -10,6 +10,7 @@ fun main() {
     val container = AppContainer(
         settings = AppSettings(StorageSettings()),
     )
+    container.startGlobalPresence()
     ComposeViewport {
         App(container)
     }

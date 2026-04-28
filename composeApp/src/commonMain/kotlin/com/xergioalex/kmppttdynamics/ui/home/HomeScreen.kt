@@ -1,6 +1,9 @@
 package com.xergioalex.kmppttdynamics.ui.home
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,9 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,33 +43,53 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xergioalex.kmppttdynamics.AppContainer
 import com.xergioalex.kmppttdynamics.domain.Meetup
+import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
+import com.xergioalex.kmppttdynamics.domain.MeetupStatus
+import com.xergioalex.kmppttdynamics.ui.components.AvatarImage
 import com.xergioalex.kmppttdynamics.ui.components.PttHorizontalMark
 import kmppttdynamics.composeapp.generated.resources.Res
 import kmppttdynamics.composeapp.generated.resources.home_create
+import kmppttdynamics.composeapp.generated.resources.home_global_online
+import kmppttdynamics.composeapp.generated.resources.home_profile_change
 import kmppttdynamics.composeapp.generated.resources.home_join_code_hint
 import kmppttdynamics.composeapp.generated.resources.home_join_with_code
 import kmppttdynamics.composeapp.generated.resources.home_live_meetups
 import kmppttdynamics.composeapp.generated.resources.home_no_live
 import kmppttdynamics.composeapp.generated.resources.home_no_past
 import kmppttdynamics.composeapp.generated.resources.home_past_meetups
+import kmppttdynamics.composeapp.generated.resources.home_resume
 import kmppttdynamics.composeapp.generated.resources.join_meetup_not_found
 import kmppttdynamics.composeapp.generated.resources.room_join_code
+import kmppttdynamics.composeapp.generated.resources.room_status_archived
+import kmppttdynamics.composeapp.generated.resources.room_status_draft
+import kmppttdynamics.composeapp.generated.resources.room_status_ended
+import kmppttdynamics.composeapp.generated.resources.room_status_live
+import kmppttdynamics.composeapp.generated.resources.room_status_paused
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun HomeScreen(
     container: AppContainer,
     onCreate: () -> Unit,
-    onJoin: (meetupId: String) -> Unit,
+    onEditProfile: () -> Unit,
+    onEnterRoom: (meetupId: String, existingParticipant: MeetupParticipant) -> Unit,
 ) {
-    val vm: HomeViewModel = viewModel { HomeViewModel(container.meetups) }
+    val vm: HomeViewModel = viewModel {
+        HomeViewModel(
+            meetups = container.meetups,
+            participants = container.participants,
+            settings = container.settings,
+            presence = container.globalPresence,
+        )
+    }
     val state by vm.state.collectAsStateWithLifecycle()
     val event by vm.events.collectAsStateWithLifecycle()
+    val profile by container.settings.profile.collectAsStateWithLifecycle()
 
     LaunchedEffect(event) {
         when (val e = event) {
-            is HomeEvent.JoinResolved -> {
-                onJoin(e.meetupId)
+            is HomeEvent.EnterRoom -> {
+                onEnterRoom(e.meetupId, e.participant)
                 vm.consumeEvent()
             }
             null -> Unit
@@ -78,6 +105,16 @@ fun HomeScreen(
             PttHorizontalMark()
             Button(onClick = onCreate) { Text(stringResource(Res.string.home_create)) }
         }
+        Spacer(Modifier.height(12.dp))
+        profile?.let { p ->
+            ProfileChip(
+                displayName = p.displayName,
+                avatarId = p.avatarId,
+                onClick = onEditProfile,
+            )
+            Spacer(Modifier.height(10.dp))
+        }
+        GlobalOnlineBadge(count = state.globalOnline)
         Spacer(Modifier.height(16.dp))
 
         JoinByCodeBar(
@@ -99,7 +136,12 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.live, key = { it.id }) { meetup ->
-                    MeetupCard(meetup, onClick = { onJoin(meetup.id) })
+                    val cached = remember(meetup.id) { container.settings.participantIdFor(meetup.id) != null }
+                    MeetupCard(
+                        meetup = meetup,
+                        showResume = cached,
+                        onClick = { vm.onEnterMeetup(meetup.id) },
+                    )
                 }
             }
         }
@@ -113,10 +155,71 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.past, key = { it.id }) { meetup ->
-                    MeetupCard(meetup, onClick = { onJoin(meetup.id) })
+                    val cached = remember(meetup.id) { container.settings.participantIdFor(meetup.id) != null }
+                    MeetupCard(
+                        meetup = meetup,
+                        showResume = cached,
+                        onClick = { vm.onEnterMeetup(meetup.id) },
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileChip(
+    displayName: String,
+    avatarId: Int,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(28.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AvatarImage(avatarId = avatarId, size = 40.dp)
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(
+                text = displayName,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = stringResource(Res.string.home_profile_change),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun GlobalOnlineBadge(count: Int) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondary),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = stringResource(Res.string.home_global_online, count),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
     }
 }
 
@@ -186,14 +289,21 @@ private fun EmptyState(message: String) {
 }
 
 @Composable
-private fun MeetupCard(meetup: Meetup, onClick: () -> Unit) {
+private fun MeetupCard(meetup: Meetup, showResume: Boolean, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         onClick = onClick,
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(meetup.title, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    meetup.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                StatusBadge(meetup.status)
+            }
             if (!meetup.description.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -208,13 +318,60 @@ private fun MeetupCard(meetup: Meetup, onClick: () -> Unit) {
                     text = stringResource(Res.string.room_join_code, meetup.joinCode),
                     style = MaterialTheme.typography.labelLarge,
                 )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = meetup.status.name.lowercase(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
+                if (showResume) {
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = stringResource(Res.string.home_resume),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun StatusBadge(status: MeetupStatus) {
+    val (label, fg, bg) = when (status) {
+        MeetupStatus.LIVE -> Triple(
+            stringResource(Res.string.room_status_live),
+            MaterialTheme.colorScheme.onSecondaryContainer,
+            MaterialTheme.colorScheme.secondaryContainer,
+        )
+        MeetupStatus.PAUSED -> Triple(
+            stringResource(Res.string.room_status_paused),
+            MaterialTheme.colorScheme.onTertiaryContainer,
+            MaterialTheme.colorScheme.tertiaryContainer,
+        )
+        MeetupStatus.DRAFT -> Triple(
+            stringResource(Res.string.room_status_draft),
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            MaterialTheme.colorScheme.surfaceVariant,
+        )
+        MeetupStatus.ENDED -> Triple(
+            stringResource(Res.string.room_status_ended),
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            MaterialTheme.colorScheme.surfaceVariant,
+        )
+        MeetupStatus.ARCHIVED -> Triple(
+            stringResource(Res.string.room_status_archived),
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            MaterialTheme.colorScheme.surfaceVariant,
+        )
+    }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(bg)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = fg,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }

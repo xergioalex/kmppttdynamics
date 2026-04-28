@@ -8,7 +8,7 @@ import platform.Foundation.NSUserDefaults
 private val container by lazy {
     AppContainer(
         settings = AppSettings(NSUserDefaultsSettings(NSUserDefaults.standardUserDefaults)),
-    )
+    ).also { it.startGlobalPresence() }
 }
 
 @Suppress("FunctionName")

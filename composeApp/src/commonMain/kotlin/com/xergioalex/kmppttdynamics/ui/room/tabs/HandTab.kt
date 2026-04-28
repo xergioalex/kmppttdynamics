@@ -1,6 +1,8 @@
 package com.xergioalex.kmppttdynamics.ui.room.tabs
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,11 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -30,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xergioalex.kmppttdynamics.AppContainer
+import com.xergioalex.kmppttdynamics.domain.AppUser
 import com.xergioalex.kmppttdynamics.domain.HandStatus
 import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.domain.ParticipantRole
@@ -57,22 +63,22 @@ fun HandTab(
     meetupId: String,
     me: MeetupParticipant,
     participantsById: Map<String, MeetupParticipant>,
+    usersByClientId: Map<String, AppUser>,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    var hands by remember { mutableStateOf<List<RaisedHand>>(emptyList()) }
+    var hands by remember { mutableStateOf<List<RaisedHand>?>(null) }
     var draftMessage by remember { mutableStateOf("") }
     val isHost = me.role == ParticipantRole.HOST
-    val myActiveHand = hands.firstOrNull { it.participantId == me.id }
+    val myActiveHand = hands?.firstOrNull { it.participantId == me.id }
 
     LaunchedEffect(meetupId) {
         container.hands.observe(meetupId)
-            .catch { /* later */ }
+            .catch { hands = emptyList() }
             .collect { hands = it }
     }
 
     Column(modifier = modifier.fillMaxSize().padding(12.dp)) {
-        // Participant action — raise / lower
         if (myActiveHand == null) {
             OutlinedTextField(
                 value = draftMessage,
@@ -126,31 +132,41 @@ fun HandTab(
             fontWeight = FontWeight.Bold,
         )
         Spacer(Modifier.height(8.dp))
-        if (hands.isEmpty()) {
-            Text(
-                stringResource(Res.string.hand_queue_empty),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(hands, key = { it.id }) { hand ->
-                    HandRow(
-                        hand = hand,
-                        whoBy = participantsById[hand.participantId]?.displayName.orEmpty(),
-                        isHost = isHost,
-                        onAcknowledge = {
-                            scope.launch { runCatching { container.hands.acknowledge(hand.id) } }
-                        },
-                        onSpeaking = {
-                            scope.launch { runCatching { container.hands.setSpeaking(hand.id) } }
-                        },
-                        onLower = {
-                            scope.launch { runCatching { container.hands.lower(hand.id) } }
-                        },
-                        onDismiss = {
-                            scope.launch { runCatching { container.hands.dismiss(hand.id) } }
-                        },
-                    )
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                hands == null -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(strokeWidth = 2.dp)
+                }
+                hands!!.isEmpty() -> Text(
+                    stringResource(Res.string.hand_queue_empty),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(hands!!, key = { it.id }) { hand ->
+                        val participant = participantsById[hand.participantId]
+                        val avatarId = participant?.clientId?.let { usersByClientId[it]?.avatarId }
+                        HandRow(
+                            hand = hand,
+                            whoBy = participant?.displayName.orEmpty(),
+                            avatarId = avatarId,
+                            isHost = isHost,
+                            onAcknowledge = {
+                                scope.launch { runCatching { container.hands.acknowledge(hand.id) } }
+                            },
+                            onSpeaking = {
+                                scope.launch { runCatching { container.hands.setSpeaking(hand.id) } }
+                            },
+                            onLower = {
+                                scope.launch { runCatching { container.hands.lower(hand.id) } }
+                            },
+                            onDismiss = {
+                                scope.launch { runCatching { container.hands.dismiss(hand.id) } }
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -161,6 +177,7 @@ fun HandTab(
 private fun HandRow(
     hand: RaisedHand,
     whoBy: String,
+    avatarId: Int?,
     isHost: Boolean,
     onAcknowledge: () -> Unit,
     onSpeaking: () -> Unit,
@@ -173,6 +190,8 @@ private fun HandRow(
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                AvatarOrPlaceholder(avatarId = avatarId, size = 36.dp)
+                Spacer(Modifier.size(10.dp))
                 Text(whoBy, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 Text(
@@ -183,11 +202,19 @@ private fun HandRow(
             }
             if (!hand.message.isNullOrBlank()) {
                 Spacer(Modifier.height(4.dp))
-                Text(hand.message, style = MaterialTheme.typography.bodyMedium)
+                Text(hand.message, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 46.dp))
             }
             if (isHost) {
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Horizontally scrollable so 4+ buttons never wrap their
+                // own labels into 3 lines like the previous "Dis mis s"
+                // overflow.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     if (hand.status == HandStatus.RAISED) {
                         OutlinedButton(onClick = onAcknowledge) {
                             Text(stringResource(Res.string.hand_action_acknowledge))

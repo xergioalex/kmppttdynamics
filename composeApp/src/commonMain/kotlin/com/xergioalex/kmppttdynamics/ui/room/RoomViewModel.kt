@@ -2,9 +2,12 @@ package com.xergioalex.kmppttdynamics.ui.room
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xergioalex.kmppttdynamics.appusers.AppUserRepository
+import com.xergioalex.kmppttdynamics.domain.AppUser
 import com.xergioalex.kmppttdynamics.domain.Meetup
 import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.domain.MeetupStatus
+import com.xergioalex.kmppttdynamics.domain.ParticipantRole
 import com.xergioalex.kmppttdynamics.meetups.MeetupRepository
 import com.xergioalex.kmppttdynamics.participants.ParticipantRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +20,12 @@ import kotlinx.coroutines.launch
 data class RoomUiState(
     val meetup: Meetup? = null,
     val participants: List<MeetupParticipant> = emptyList(),
+    /**
+     * Map of `client_id -> AppUser` for every install we've seen in
+     * the realtime feed. Used by the room UI to resolve a participant's
+     * avatar (and the latest display name) without re-querying.
+     */
+    val usersByClientId: Map<String, AppUser> = emptyMap(),
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
 ) {
@@ -27,6 +36,7 @@ data class RoomUiState(
 class RoomViewModel(
     private val meetups: MeetupRepository,
     private val participants: ParticipantRepository,
+    private val users: AppUserRepository,
     private val meetupId: String,
     private val mySelfId: String,
 ) : ViewModel() {
@@ -48,9 +58,21 @@ class RoomViewModel(
                 .catch { t -> _state.update { it.copy(errorMessage = t.message) } }
                 .collect { list -> _state.update { it.copy(participants = list) } }
         }
-        // Mark ourselves online on entry. We don't currently flip back to
-        // offline on leave because that requires a bullet-proof lifecycle
-        // hook on every platform — adding it is part of Milestone 2.
+        // Cross-meetup user identity feed — gives us each participant's
+        // avatar and latest display name in real time.
+        viewModelScope.launch {
+            users.observeAll()
+                .catch { /* non-fatal */ }
+                .collect { list ->
+                    _state.update { current ->
+                        current.copy(usersByClientId = list.associateBy { it.clientId })
+                    }
+                }
+        }
+        // Mark ourselves online on entry. With encodeDefaults = true on
+        // the JSON serializer, our JoinRequest already inserts as
+        // is_online = true; this flips the bit back on if we're
+        // reactivating an existing participant row after a back-out.
         viewModelScope.launch {
             runCatching { participants.setOnline(mySelfId, true) }
         }
@@ -64,6 +86,24 @@ class RoomViewModel(
         }
     }
 
+    /**
+     * Promote / demote another participant. The realtime feed will
+     * reflect the change for everyone in the room (including the
+     * affected participant — their UI flips into / out of host mode).
+     */
+    fun setParticipantRole(participantId: String, role: ParticipantRole) {
+        viewModelScope.launch {
+            runCatching { participants.setRole(participantId, role) }
+                .onFailure { t -> _state.update { it.copy(errorMessage = t.message) } }
+        }
+    }
+
+    /**
+     * Marks the user as offline and notifies the screen layer to navigate
+     * away. The participant row stays in the database so the user can
+     * resume their seat from home — including hosts, who keep their
+     * `role = host` even while offline.
+     */
     fun leave(onDone: () -> Unit) {
         viewModelScope.launch {
             runCatching { participants.setOnline(mySelfId, false) }

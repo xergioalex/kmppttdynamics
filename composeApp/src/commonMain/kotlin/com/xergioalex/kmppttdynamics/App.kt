@@ -23,7 +23,7 @@ import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.ui.components.PttVerticalMark
 import com.xergioalex.kmppttdynamics.ui.create.CreateMeetupScreen
 import com.xergioalex.kmppttdynamics.ui.home.HomeScreen
-import com.xergioalex.kmppttdynamics.ui.join.JoinMeetupScreen
+import com.xergioalex.kmppttdynamics.ui.onboarding.OnboardingScreen
 import com.xergioalex.kmppttdynamics.ui.room.RoomScreen
 import com.xergioalex.kmppttdynamics.ui.theme.AppTheme
 import kmppttdynamics.composeapp.generated.resources.Res
@@ -33,13 +33,14 @@ import org.jetbrains.compose.resources.stringResource
 private sealed interface Screen {
     data object Home : Screen
     data object Create : Screen
-    data class Join(val meetupId: String) : Screen
+    data object EditProfile : Screen
     data class Room(val meetupId: String, val me: MeetupParticipant) : Screen
 }
 
 @Composable
 fun App(container: AppContainer) {
     val themeMode by container.settings.themeMode.collectAsStateWithLifecycle()
+    val profile by container.settings.profile.collectAsStateWithLifecycle()
 
     AppTheme(themeMode) {
         Surface(
@@ -51,6 +52,17 @@ fun App(container: AppContainer) {
                 return@Surface
             }
 
+            // First-launch gate: until the user has chosen a name and
+            // an avatar, every other screen is unreachable.
+            if (profile == null) {
+                OnboardingScreen(
+                    container = container,
+                    editing = false,
+                    onComplete = { /* state flow flip will re-route automatically */ },
+                )
+                return@Surface
+            }
+
             // Navigation is in-memory for Milestone 1; process-death restore
             // will land with a proper nav graph later.
             var screen by remember { mutableStateOf<Screen>(Screen.Home) }
@@ -59,24 +71,25 @@ fun App(container: AppContainer) {
                 Screen.Home -> HomeScreen(
                     container = container,
                     onCreate = { screen = Screen.Create },
-                    onJoin = { meetupId -> screen = Screen.Join(meetupId) },
+                    onEditProfile = { screen = Screen.EditProfile },
+                    onEnterRoom = { meetupId, existing ->
+                        screen = Screen.Room(meetupId, existing)
+                    },
                 )
 
                 Screen.Create -> CreateMeetupScreen(
                     container = container,
                     onCancel = { screen = Screen.Home },
-                    onCreated = { meetup -> screen = Screen.Join(meetup.id) },
+                    onCreated = { _, host ->
+                        screen = Screen.Room(host.meetupId, host)
+                    },
                 )
 
-                is Screen.Join -> JoinMeetupScreen(
+                Screen.EditProfile -> OnboardingScreen(
                     container = container,
-                    meetupId = s.meetupId,
-                    initialDisplayName = remember { container.settings.lastDisplayName().orEmpty() },
+                    editing = true,
+                    onComplete = { screen = Screen.Home },
                     onCancel = { screen = Screen.Home },
-                    onJoined = { participant ->
-                        container.settings.setLastDisplayName(participant.displayName)
-                        screen = Screen.Room(s.meetupId, participant)
-                    },
                 )
 
                 is Screen.Room -> RoomScreen(

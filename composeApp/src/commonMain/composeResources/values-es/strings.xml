@@ -3,6 +3,20 @@
     <string name="app_title">PTT Dynamics</string>
     <string name="app_tagline">Pereira Tech Talks · dinámicas en vivo</string>
 
+    <!-- Onboarding / perfil -->
+    <string name="onboarding_title">Bienvenido a PTT Dynamics</string>
+    <string name="onboarding_subtitle">Elige un avatar y un nombre. Te acompañan en cada meetup.</string>
+    <string name="onboarding_title_edit">Editar perfil</string>
+    <string name="onboarding_subtitle_edit">Tu avatar y nombre aparecen en cada meetup al que entras.</string>
+    <string name="onboarding_display_name">Nombre</string>
+    <string name="onboarding_pick_another">Elegir otro avatar</string>
+    <string name="onboarding_continue">Continuar</string>
+    <string name="onboarding_save">Guardar</string>
+    <string name="onboarding_picker_title">Elige tu avatar</string>
+    <string name="onboarding_picker_select">Los bloqueados ya están en uso.</string>
+    <string name="onboarding_picker_taken_by">Lo usa %1$s</string>
+
+    <string name="home_profile_change">Toca para cambiar tu perfil</string>
     <string name="home_live_meetups">Meetups en vivo</string>
     <string name="home_past_meetups">Meetups anteriores</string>
     <string name="home_no_live">No hay meetups en vivo en este momento</string>
@@ -11,17 +25,20 @@
     <string name="home_join_with_code">Unirse con código</string>
     <string name="home_join_code_hint">Ingresa el código</string>
     <string name="home_loading">Cargando meetups…</string>
+    <string name="home_global_online">%1$d en línea en la app</string>
+    <string name="home_resume">Volver a tu lugar</string>
 
     <string name="create_title">Nuevo meetup</string>
     <string name="create_field_title">Título</string>
     <string name="create_field_description">Descripción</string>
     <string name="create_field_join_code">Código de acceso</string>
     <string name="create_field_join_code_helper">Generado automáticamente. Edítalo si quieres uno propio.</string>
+    <string name="create_field_host_name">Tu nombre (host)</string>
+    <string name="create_field_host_name_helper">Serás el host de este meetup.</string>
     <string name="create_action_create">Crear meetup</string>
 
     <string name="join_title">Unirse al meetup</string>
     <string name="join_display_name">Tu nombre</string>
-    <string name="join_role_host">Entrar como host</string>
     <string name="join_action_join">Unirme</string>
     <string name="join_meetup_not_found">No encontramos un meetup con ese código.</string>
 
@@ -35,25 +52,37 @@
     <string name="room_online">%1$d en línea</string>
     <string name="room_no_participants">Aún nadie se ha unido.</string>
     <string name="room_leave">Salir del room</string>
+    <string name="room_back">Volver al inicio</string>
+    <string name="room_back_helper">Tu lugar queda guardado. Toca el meetup otra vez para volver.</string>
     <string name="room_host_actions">Controles del host</string>
     <string name="room_host_start">Iniciar meetup</string>
     <string name="room_host_pause">Pausar</string>
     <string name="room_host_resume">Reanudar</string>
     <string name="room_host_end">Finalizar</string>
+    <string name="room_members_promote">Hacer host</string>
+    <string name="room_members_demote">Quitar host</string>
+    <string name="room_members_you">tú</string>
+    <string name="room_members_role_host">host</string>
+    <string name="room_members_role_participant">participante</string>
+    <string name="room_members_role_moderator">moderador</string>
 
     <string name="tab_live">En vivo</string>
+    <string name="tab_members">Miembros</string>
     <string name="tab_chat">Chat</string>
     <string name="tab_qa">Q&amp;A</string>
     <string name="tab_polls">Encuestas</string>
     <string name="tab_raffles">Sorteos</string>
+    <string name="tab_hand">Mano</string>
 
     <string name="chat_input_hint">Escribe un mensaje…</string>
     <string name="chat_send">Enviar</string>
-    <string name="chat_announce_hint">Envía un anuncio a todo el room</string>
+    <string name="chat_announce_hint">Anuncio…</string>
     <string name="chat_announce">Anunciar</string>
     <string name="chat_announce_label">Anuncio</string>
+    <string name="chat_announce_toggle">Enviar como anuncio</string>
     <string name="chat_empty">Aún no hay mensajes — empieza la conversación.</string>
     <string name="chat_hide">Ocultar</string>
+    <string name="chat_loading">Cargando chat…</string>
 
     <string name="hand_raise">Levantar la mano</string>
     <string name="hand_lower">Bajar la mano</string>
@@ -63,15 +92,16 @@
     <string name="hand_status_raised">Levantada</string>
     <string name="hand_status_acknowledged">Reconocida</string>
     <string name="hand_status_speaking">Hablando</string>
-    <string name="hand_action_acknowledge">Reconocer</string>
+    <string name="hand_action_acknowledge">Aceptar</string>
     <string name="hand_action_speaking">Está hablando</string>
     <string name="hand_action_lower">Bajar</string>
-    <string name="hand_action_dismiss">Descartar</string>
+    <string name="hand_action_dismiss">Cerrar</string>
 
     <string name="qa_ask_hint">Pregúntale al speaker…</string>
     <string name="qa_ask">Preguntar</string>
     <string name="qa_empty">Aún no hay preguntas — sé el primero.</string>
-    <string name="qa_upvotes">%1$d votos</string>
+    <string name="qa_loading">Cargando preguntas…</string>
+    <string name="qa_upvotes">%1$d</string>
     <string name="qa_status_open">Abierta</string>
     <string name="qa_status_answered">Respondida</string>
     <string name="qa_mark_answered">Marcar respondida</string>
@@ -79,6 +109,7 @@
 
     <string name="polls_create">Crear encuesta</string>
     <string name="polls_empty">Aún no hay encuestas.</string>
+    <string name="polls_loading">Cargando encuestas…</string>
     <string name="polls_close">Cerrar encuesta</string>
     <string name="polls_status_draft">Borrador</string>
     <string name="polls_status_open">Abierta</string>
@@ -90,6 +121,8 @@
     <string name="polls_anonymous">Voto anónimo</string>
     <string name="polls_total_votes">%1$d votos</string>
     <string name="polls_publish">Publicar encuesta</string>
+    <string name="polls_my_vote">Tu voto</string>
+    <string name="polls_change_vote_hint">Toca otra opción para cambiar tu voto.</string>
 
     <string name="raffles_create">Crear sorteo</string>
     <string name="raffles_empty">Aún no hay sorteos.</string>

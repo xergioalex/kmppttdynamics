@@ -3,7 +3,21 @@
     <string name="app_title">PTT Dynamics</string>
     <string name="app_tagline">Pereira Tech Talks · live meetup dynamics</string>
 
+    <!-- Onboarding / profile -->
+    <string name="onboarding_title">Welcome to PTT Dynamics</string>
+    <string name="onboarding_subtitle">Pick an avatar and a name. Both follow you into every meetup.</string>
+    <string name="onboarding_title_edit">Edit profile</string>
+    <string name="onboarding_subtitle_edit">Your avatar and name appear in every meetup you join.</string>
+    <string name="onboarding_display_name">Display name</string>
+    <string name="onboarding_pick_another">Pick another avatar</string>
+    <string name="onboarding_continue">Continue</string>
+    <string name="onboarding_save">Save</string>
+    <string name="onboarding_picker_title">Pick your avatar</string>
+    <string name="onboarding_picker_select">Locked ones are already in use.</string>
+    <string name="onboarding_picker_taken_by">Used by %1$s</string>
+
     <!-- Home -->
+    <string name="home_profile_change">Tap to change profile</string>
     <string name="home_live_meetups">Live meetups</string>
     <string name="home_past_meetups">Past meetups</string>
     <string name="home_no_live">No meetups are live right now</string>
@@ -12,6 +26,8 @@
     <string name="home_join_with_code">Join with code</string>
     <string name="home_join_code_hint">Enter join code</string>
     <string name="home_loading">Loading meetups…</string>
+    <string name="home_global_online">%1$d online in the app</string>
+    <string name="home_resume">Resume your seat</string>
 
     <!-- Create -->
     <string name="create_title">New meetup</string>
@@ -19,12 +35,13 @@
     <string name="create_field_description">Description</string>
     <string name="create_field_join_code">Join code</string>
     <string name="create_field_join_code_helper">Auto-generated. Edit if you want a custom code.</string>
+    <string name="create_field_host_name">Your name (host)</string>
+    <string name="create_field_host_name_helper">You will be the host of this meetup.</string>
     <string name="create_action_create">Create meetup</string>
 
     <!-- Join -->
     <string name="join_title">Join meetup</string>
     <string name="join_display_name">Your display name</string>
-    <string name="join_role_host">Join as host</string>
     <string name="join_action_join">Join</string>
     <string name="join_meetup_not_found">No meetup found for that code.</string>
 
@@ -39,27 +56,39 @@
     <string name="room_online">%1$d online</string>
     <string name="room_no_participants">No one has joined yet.</string>
     <string name="room_leave">Leave room</string>
+    <string name="room_back">Back to home</string>
+    <string name="room_back_helper">Your seat is saved. Tap the meetup again to come back.</string>
     <string name="room_host_actions">Host controls</string>
     <string name="room_host_start">Start meetup</string>
     <string name="room_host_pause">Pause</string>
     <string name="room_host_resume">Resume</string>
     <string name="room_host_end">End meetup</string>
+    <string name="room_members_promote">Make host</string>
+    <string name="room_members_demote">Remove host</string>
+    <string name="room_members_you">you</string>
+    <string name="room_members_role_host">host</string>
+    <string name="room_members_role_participant">participant</string>
+    <string name="room_members_role_moderator">moderator</string>
 
     <!-- Tabs -->
     <string name="tab_live">Live</string>
+    <string name="tab_members">Members</string>
     <string name="tab_chat">Chat</string>
     <string name="tab_qa">Q&amp;A</string>
     <string name="tab_polls">Polls</string>
     <string name="tab_raffles">Raffles</string>
+    <string name="tab_hand">Raise hand</string>
 
     <!-- Chat (M2) -->
     <string name="chat_input_hint">Write a message…</string>
     <string name="chat_send">Send</string>
-    <string name="chat_announce_hint">Send an announcement to the whole room</string>
+    <string name="chat_announce_hint">Announcement…</string>
     <string name="chat_announce">Announce</string>
     <string name="chat_announce_label">Announcement</string>
+    <string name="chat_announce_toggle">Send as announcement</string>
     <string name="chat_empty">No messages yet — start the conversation.</string>
     <string name="chat_hide">Hide</string>
+    <string name="chat_loading">Loading chat…</string>
 
     <!-- Hand raise (M3) -->
     <string name="hand_raise">Raise hand</string>
@@ -70,7 +99,7 @@
     <string name="hand_status_raised">Raised</string>
     <string name="hand_status_acknowledged">Acknowledged</string>
     <string name="hand_status_speaking">Speaking</string>
-    <string name="hand_action_acknowledge">Acknowledge</string>
+    <string name="hand_action_acknowledge">Ack</string>
     <string name="hand_action_speaking">Speaking</string>
     <string name="hand_action_lower">Lower</string>
     <string name="hand_action_dismiss">Dismiss</string>
@@ -79,7 +108,8 @@
     <string name="qa_ask_hint">Ask the speaker something…</string>
     <string name="qa_ask">Ask</string>
     <string name="qa_empty">No questions yet — be the first.</string>
-    <string name="qa_upvotes">%1$d upvotes</string>
+    <string name="qa_loading">Loading questions…</string>
+    <string name="qa_upvotes">%1$d</string>
     <string name="qa_status_open">Open</string>
     <string name="qa_status_answered">Answered</string>
     <string name="qa_mark_answered">Mark answered</string>
@@ -88,6 +118,7 @@
     <!-- Polls (M4) -->
     <string name="polls_create">Create poll</string>
     <string name="polls_empty">No polls yet.</string>
+    <string name="polls_loading">Loading polls…</string>
     <string name="polls_close">Close poll</string>
     <string name="polls_status_draft">Draft</string>
     <string name="polls_status_open">Open</string>
@@ -99,6 +130,8 @@
     <string name="polls_anonymous">Anonymous votes</string>
     <string name="polls_total_votes">%1$d votes</string>
     <string name="polls_publish">Publish poll</string>
+    <string name="polls_my_vote">Your vote</string>
+    <string name="polls_change_vote_hint">Tap another option to change your vote.</string>
 
     <!-- Raffles (M5) -->
     <string name="raffles_create">Create raffle</string>

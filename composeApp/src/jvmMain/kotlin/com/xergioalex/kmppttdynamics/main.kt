@@ -15,6 +15,7 @@ fun main() {
             PreferencesSettings(Preferences.userRoot().node("com/xergioalex/kmppttdynamics")),
         ),
     )
+    container.startGlobalPresence()
     application {
         val state = rememberWindowState(size = DpSize(1100.dp, 720.dp))
         Window(

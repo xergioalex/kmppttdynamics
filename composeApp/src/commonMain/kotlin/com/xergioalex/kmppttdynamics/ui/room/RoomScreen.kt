@@ -1,5 +1,6 @@
 package com.xergioalex.kmppttdynamics.ui.room
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,9 +10,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -19,7 +23,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,12 +42,16 @@ import com.xergioalex.kmppttdynamics.AppContainer
 import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.domain.MeetupStatus
 import com.xergioalex.kmppttdynamics.domain.ParticipantRole
+import com.xergioalex.kmppttdynamics.ui.components.AvatarImage
 import com.xergioalex.kmppttdynamics.ui.room.tabs.ChatTab
 import com.xergioalex.kmppttdynamics.ui.room.tabs.HandTab
 import com.xergioalex.kmppttdynamics.ui.room.tabs.PollsTab
 import com.xergioalex.kmppttdynamics.ui.room.tabs.QATab
 import com.xergioalex.kmppttdynamics.ui.room.tabs.RafflesTab
 import kmppttdynamics.composeapp.generated.resources.Res
+import kmppttdynamics.composeapp.generated.resources.action_cancel
+import kmppttdynamics.composeapp.generated.resources.room_back
+import kmppttdynamics.composeapp.generated.resources.room_back_helper
 import kmppttdynamics.composeapp.generated.resources.room_host_actions
 import kmppttdynamics.composeapp.generated.resources.room_host_end
 import kmppttdynamics.composeapp.generated.resources.room_host_pause
@@ -52,6 +59,12 @@ import kmppttdynamics.composeapp.generated.resources.room_host_resume
 import kmppttdynamics.composeapp.generated.resources.room_host_start
 import kmppttdynamics.composeapp.generated.resources.room_join_code
 import kmppttdynamics.composeapp.generated.resources.room_leave
+import kmppttdynamics.composeapp.generated.resources.room_members_demote
+import kmppttdynamics.composeapp.generated.resources.room_members_promote
+import kmppttdynamics.composeapp.generated.resources.room_members_role_host
+import kmppttdynamics.composeapp.generated.resources.room_members_role_moderator
+import kmppttdynamics.composeapp.generated.resources.room_members_role_participant
+import kmppttdynamics.composeapp.generated.resources.room_members_you
 import kmppttdynamics.composeapp.generated.resources.room_no_participants
 import kmppttdynamics.composeapp.generated.resources.room_online
 import kmppttdynamics.composeapp.generated.resources.room_participants
@@ -61,21 +74,14 @@ import kmppttdynamics.composeapp.generated.resources.room_status_ended
 import kmppttdynamics.composeapp.generated.resources.room_status_live
 import kmppttdynamics.composeapp.generated.resources.room_status_paused
 import kmppttdynamics.composeapp.generated.resources.tab_chat
-import kmppttdynamics.composeapp.generated.resources.tab_live
+import kmppttdynamics.composeapp.generated.resources.tab_hand
+import kmppttdynamics.composeapp.generated.resources.tab_members
 import kmppttdynamics.composeapp.generated.resources.tab_polls
 import kmppttdynamics.composeapp.generated.resources.tab_qa
 import kmppttdynamics.composeapp.generated.resources.tab_raffles
-import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
-private enum class RoomTab(val labelRes: StringResource) {
-    LIVE(Res.string.tab_live),
-    HAND(Res.string.tab_live),       // overridden below — placeholder so the enum stays compact
-    CHAT(Res.string.tab_chat),
-    QA(Res.string.tab_qa),
-    POLLS(Res.string.tab_polls),
-    RAFFLES(Res.string.tab_raffles),
-}
+private enum class RoomTab { MEMBERS, HAND, CHAT, QA, POLLS, RAFFLES }
 
 @Composable
 fun RoomScreen(
@@ -85,78 +91,57 @@ fun RoomScreen(
     onLeave: () -> Unit,
 ) {
     val vm: RoomViewModel = viewModel(key = "room-$meetupId-${me.id}") {
-        RoomViewModel(container.meetups, container.participants, meetupId, me.id)
+        RoomViewModel(
+            meetups = container.meetups,
+            participants = container.participants,
+            users = container.users,
+            meetupId = meetupId,
+            mySelfId = me.id,
+        )
     }
     val state by vm.state.collectAsStateWithLifecycle()
-    var tab by remember { mutableStateOf(RoomTab.LIVE) }
+    var tab by remember { mutableStateOf(RoomTab.MEMBERS) }
     val participantsById = remember(state.participants) {
         state.participants.associateBy { it.id }
     }
+    // The "me" prop carries the role we joined with; the realtime feed
+    // can promote/demote us, so always trust the latest server snapshot.
+    val liveMe = participantsById[me.id] ?: me
+    val isHost = liveMe.role == ParticipantRole.HOST
+    var showLeaveDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
-        // Header (always visible)
-        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-            if (state.isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-            }
-            state.meetup?.let { meetup ->
-                Text(meetup.title, style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    StatusPill(meetup.status)
-                    Text(
-                        text = stringResource(Res.string.room_join_code, meetup.joinCode),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 12.dp),
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = stringResource(Res.string.room_online, state.onlineCount),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.secondary,
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-        }
+        Header(state)
 
         PrimaryScrollableTabRow(
             selectedTabIndex = tab.ordinal,
             edgePadding = 12.dp,
         ) {
-            // Live
             Tab(
-                selected = tab == RoomTab.LIVE,
-                onClick = { tab = RoomTab.LIVE },
-                text = { Text(stringResource(Res.string.tab_live)) },
+                selected = tab == RoomTab.MEMBERS,
+                onClick = { tab = RoomTab.MEMBERS },
+                text = { Text(stringResource(Res.string.tab_members)) },
             )
-            // Hand (✋)
             Tab(
                 selected = tab == RoomTab.HAND,
                 onClick = { tab = RoomTab.HAND },
-                text = { Text("✋") },
+                text = { Text(stringResource(Res.string.tab_hand)) },
             )
-            // Chat
             Tab(
                 selected = tab == RoomTab.CHAT,
                 onClick = { tab = RoomTab.CHAT },
                 text = { Text(stringResource(Res.string.tab_chat)) },
             )
-            // Q&A
             Tab(
                 selected = tab == RoomTab.QA,
                 onClick = { tab = RoomTab.QA },
                 text = { Text(stringResource(Res.string.tab_qa)) },
             )
-            // Polls
             Tab(
                 selected = tab == RoomTab.POLLS,
                 onClick = { tab = RoomTab.POLLS },
                 text = { Text(stringResource(Res.string.tab_polls)) },
             )
-            // Raffles
             Tab(
                 selected = tab == RoomTab.RAFFLES,
                 onClick = { tab = RoomTab.RAFFLES },
@@ -166,61 +151,142 @@ fun RoomScreen(
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when (tab) {
-                RoomTab.LIVE -> LiveTab(
-                    container = container,
+                RoomTab.MEMBERS -> MembersTab(
                     state = state,
-                    me = me,
+                    isHost = isHost,
+                    me = liveMe,
                     onSetStatus = vm::setStatus,
+                    onSetRole = vm::setParticipantRole,
                 )
                 RoomTab.HAND -> HandTab(
                     container = container,
                     meetupId = meetupId,
-                    me = me,
+                    me = liveMe,
                     participantsById = participantsById,
+                    usersByClientId = state.usersByClientId,
                 )
                 RoomTab.CHAT -> ChatTab(
                     container = container,
                     meetupId = meetupId,
-                    me = me,
+                    me = liveMe,
+                    participantsById = participantsById,
+                    usersByClientId = state.usersByClientId,
                 )
                 RoomTab.QA -> QATab(
                     container = container,
                     meetupId = meetupId,
-                    me = me,
+                    me = liveMe,
+                    participantsById = participantsById,
+                    usersByClientId = state.usersByClientId,
                 )
                 RoomTab.POLLS -> PollsTab(
                     container = container,
                     meetupId = meetupId,
-                    me = me,
+                    me = liveMe,
+                    participantsById = participantsById,
+                    usersByClientId = state.usersByClientId,
                 )
                 RoomTab.RAFFLES -> RafflesTab(
                     container = container,
                     meetupId = meetupId,
-                    me = me,
+                    me = liveMe,
                     participantsById = participantsById,
+                    usersByClientId = state.usersByClientId,
                 )
             }
         }
 
-        // Footer: leave button (always visible)
         HorizontalDivider()
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = { vm.leave(onLeave) }) {
+            TextButton(onClick = { showLeaveDialog = true }) {
                 Text(stringResource(Res.string.room_leave))
             }
         }
     }
+
+    if (showLeaveDialog) {
+        AlertDialog(
+            onDismissRequest = { showLeaveDialog = false },
+            title = { Text(stringResource(Res.string.room_back)) },
+            text = { Text(stringResource(Res.string.room_back_helper)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLeaveDialog = false
+                    vm.leave(onLeave)
+                }) {
+                    Text(stringResource(Res.string.room_back))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLeaveDialog = false }) {
+                    Text(stringResource(Res.string.action_cancel))
+                }
+            },
+        )
+    }
 }
 
 @Composable
-private fun LiveTab(
-    container: AppContainer,
+private fun Header(state: RoomUiState) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        if (state.isLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+        }
+        state.meetup?.let { meetup ->
+            Text(meetup.title, style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StatusPill(meetup.status)
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    text = stringResource(Res.string.room_join_code, meetup.joinCode),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.weight(1f))
+                OnlineBadge(state.onlineCount)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun OnlineBadge(count: Int) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondary),
+        )
+        Spacer(Modifier.size(6.dp))
+        Text(
+            stringResource(Res.string.room_online, count),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+private fun MembersTab(
     state: RoomUiState,
+    isHost: Boolean,
     me: MeetupParticipant,
     onSetStatus: (MeetupStatus) -> Unit,
+    onSetRole: (participantId: String, role: ParticipantRole) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
         Row(
@@ -254,14 +320,27 @@ private fun LiveTab(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(state.participants, key = { it.id }) { p ->
-                        ParticipantRow(participant = p, isMe = p.id == me.id)
+                    // Show online participants first, then offline.
+                    val sorted = state.participants.sortedWith(
+                        compareByDescending<MeetupParticipant> { it.isOnline }
+                            .thenBy { it.role.ordinal }
+                            .thenBy { it.joinedAt },
+                    )
+                    items(sorted, key = { it.id }) { p ->
+                        ParticipantRow(
+                            participant = p,
+                            avatarId = state.usersByClientId[p.clientId]?.avatarId,
+                            isMe = p.id == me.id,
+                            canPromote = isHost && p.id != me.id,
+                            onPromote = { onSetRole(p.id, ParticipantRole.HOST) },
+                            onDemote = { onSetRole(p.id, ParticipantRole.PARTICIPANT) },
+                        )
                     }
                 }
             }
         }
 
-        if (me.role == ParticipantRole.HOST) {
+        if (isHost) {
             Spacer(Modifier.height(8.dp))
             HorizontalDivider()
             Spacer(Modifier.height(8.dp))
@@ -282,7 +361,14 @@ private fun LiveTab(
 }
 
 @Composable
-private fun ParticipantRow(participant: MeetupParticipant, isMe: Boolean) {
+private fun ParticipantRow(
+    participant: MeetupParticipant,
+    avatarId: Int?,
+    isMe: Boolean,
+    canPromote: Boolean,
+    onPromote: () -> Unit,
+    onDemote: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -291,45 +377,119 @@ private fun ParticipantRow(participant: MeetupParticipant, isMe: Boolean) {
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(
-                color = if (participant.isOnline) {
-                    MaterialTheme.colorScheme.secondary
+            Box(contentAlignment = Alignment.BottomEnd) {
+                if (avatarId != null) {
+                    AvatarImage(avatarId = avatarId, size = 44.dp)
                 } else {
-                    MaterialTheme.colorScheme.outline
-                },
-                shape = CircleShape,
-                modifier = Modifier.height(10.dp).padding(end = 12.dp).clip(CircleShape),
-            ) { Box(Modifier.height(10.dp)) }
+                    // Pre-onboarding rows (legacy) — fall back to a
+                    // simple monochrome circle so the row layout stays
+                    // consistent with everyone else's.
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                    )
+                }
+                // Presence dot overlapping the avatar's bottom-right.
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(2.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (participant.isOnline) MaterialTheme.colorScheme.secondary
+                                else MaterialTheme.colorScheme.outline,
+                            ),
+                    )
+                }
+            }
+            Spacer(Modifier.size(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = participant.displayName + if (isMe) "  ·  you" else "",
+                    text = if (isMe) {
+                        "${participant.displayName} · ${stringResource(Res.string.room_members_you)}"
+                    } else {
+                        participant.displayName
+                    },
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
-                    text = participant.role.name.lowercase(),
+                    text = roleLabel(participant.role),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (canPromote) {
+                if (participant.role == ParticipantRole.HOST) {
+                    TextButton(onClick = onDemote) {
+                        Text(stringResource(Res.string.room_members_demote))
+                    }
+                } else {
+                    TextButton(onClick = onPromote) {
+                        Text(stringResource(Res.string.room_members_promote))
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
+private fun roleLabel(role: ParticipantRole): String = when (role) {
+    ParticipantRole.HOST -> stringResource(Res.string.room_members_role_host)
+    ParticipantRole.MODERATOR -> stringResource(Res.string.room_members_role_moderator)
+    ParticipantRole.PARTICIPANT -> stringResource(Res.string.room_members_role_participant)
+}
+
+@Composable
 private fun StatusPill(status: MeetupStatus) {
-    val (label, color) = when (status) {
-        MeetupStatus.DRAFT    -> Res.string.room_status_draft to MaterialTheme.colorScheme.outline
-        MeetupStatus.LIVE     -> Res.string.room_status_live to MaterialTheme.colorScheme.secondary
-        MeetupStatus.PAUSED   -> Res.string.room_status_paused to MaterialTheme.colorScheme.tertiary
-        MeetupStatus.ENDED    -> Res.string.room_status_ended to MaterialTheme.colorScheme.outline
-        MeetupStatus.ARCHIVED -> Res.string.room_status_archived to MaterialTheme.colorScheme.outline
+    val (label, fg, bg) = when (status) {
+        MeetupStatus.DRAFT -> Triple(
+            stringResource(Res.string.room_status_draft),
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            MaterialTheme.colorScheme.surfaceVariant,
+        )
+        MeetupStatus.LIVE -> Triple(
+            stringResource(Res.string.room_status_live),
+            MaterialTheme.colorScheme.onSecondaryContainer,
+            MaterialTheme.colorScheme.secondaryContainer,
+        )
+        MeetupStatus.PAUSED -> Triple(
+            stringResource(Res.string.room_status_paused),
+            MaterialTheme.colorScheme.onTertiaryContainer,
+            MaterialTheme.colorScheme.tertiaryContainer,
+        )
+        MeetupStatus.ENDED -> Triple(
+            stringResource(Res.string.room_status_ended),
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            MaterialTheme.colorScheme.surfaceVariant,
+        )
+        MeetupStatus.ARCHIVED -> Triple(
+            stringResource(Res.string.room_status_archived),
+            MaterialTheme.colorScheme.onSurfaceVariant,
+            MaterialTheme.colorScheme.surfaceVariant,
+        )
     }
-    Text(
-        text = stringResource(label),
-        style = MaterialTheme.typography.labelLarge,
-        color = color,
-        fontWeight = FontWeight.Bold,
-    )
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(bg)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = fg,
+            fontWeight = FontWeight.Bold,
+        )
+    }
 }
 
 @Composable

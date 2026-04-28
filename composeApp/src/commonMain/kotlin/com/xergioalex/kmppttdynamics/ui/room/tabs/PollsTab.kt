@@ -1,6 +1,7 @@
 package com.xergioalex.kmppttdynamics.ui.room.tabs
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,14 +20,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xergioalex.kmppttdynamics.AppContainer
+import com.xergioalex.kmppttdynamics.domain.AppUser
 import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.domain.ParticipantRole
 import com.xergioalex.kmppttdynamics.domain.Poll
@@ -48,11 +51,14 @@ import kmppttdynamics.composeapp.generated.resources.Res
 import kmppttdynamics.composeapp.generated.resources.action_cancel
 import kmppttdynamics.composeapp.generated.resources.polls_add_option
 import kmppttdynamics.composeapp.generated.resources.polls_anonymous
+import kmppttdynamics.composeapp.generated.resources.polls_change_vote_hint
 import kmppttdynamics.composeapp.generated.resources.polls_close
 import kmppttdynamics.composeapp.generated.resources.polls_create
 import kmppttdynamics.composeapp.generated.resources.polls_empty
 import kmppttdynamics.composeapp.generated.resources.polls_field_option
 import kmppttdynamics.composeapp.generated.resources.polls_field_question
+import kmppttdynamics.composeapp.generated.resources.polls_loading
+import kmppttdynamics.composeapp.generated.resources.polls_my_vote
 import kmppttdynamics.composeapp.generated.resources.polls_publish
 import kmppttdynamics.composeapp.generated.resources.polls_remove_option
 import kmppttdynamics.composeapp.generated.resources.polls_status_closed
@@ -68,16 +74,19 @@ fun PollsTab(
     container: AppContainer,
     meetupId: String,
     me: MeetupParticipant,
+    participantsById: Map<String, MeetupParticipant>,
+    usersByClientId: Map<String, AppUser>,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    var board by remember { mutableStateOf(PollBoard(emptyList(), emptyMap(), emptyMap())) }
+    var board by remember { mutableStateOf<PollBoard?>(null) }
     var showCreate by remember { mutableStateOf(false) }
+    var isCreating by remember { mutableStateOf(false) }
     val isHost = me.role == ParticipantRole.HOST
 
     LaunchedEffect(meetupId) {
         container.polls.observeBoard(meetupId)
-            .catch { /* later */ }
+            .catch { board = PollBoard(emptyList(), emptyMap(), emptyMap()) }
             .collect { board = it }
     }
 
@@ -85,35 +94,54 @@ fun PollsTab(
         if (isHost) {
             Button(
                 onClick = { showCreate = true },
+                enabled = !isCreating,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(Res.string.polls_create)) }
+            ) {
+                if (isCreating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.height(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text(stringResource(Res.string.polls_create))
+                }
+            }
             Spacer(Modifier.height(12.dp))
         }
-        if (board.polls.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    stringResource(Res.string.polls_empty),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(board.polls, key = { it.id }) { poll ->
-                    PollCard(
-                        poll = poll,
-                        options = board.options[poll.id].orEmpty(),
-                        votes = board.votes[poll.id].orEmpty(),
-                        myParticipantId = me.id,
-                        isHost = isHost,
-                        onVote = { optionId ->
-                            scope.launch {
-                                runCatching { container.polls.vote(poll.id, optionId, me.id) }
-                            }
-                        },
-                        onClose = {
-                            scope.launch { runCatching { container.polls.close(poll.id) } }
-                        },
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                board == null -> LoadingState(stringResource(Res.string.polls_loading))
+                board!!.polls.isEmpty() -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        stringResource(Res.string.polls_empty),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(board!!.polls, key = { it.id }) { poll ->
+                        val creator = poll.createdBy?.let { participantsById[it] }
+                        val creatorAvatar = creator?.clientId?.let { usersByClientId[it]?.avatarId }
+                        PollCard(
+                            poll = poll,
+                            options = board!!.options[poll.id].orEmpty(),
+                            votes = board!!.votes[poll.id].orEmpty(),
+                            myParticipantId = me.id,
+                            isHost = isHost,
+                            creatorName = creator?.displayName,
+                            creatorAvatar = creatorAvatar,
+                            onVote = { optionId ->
+                                scope.launch {
+                                    runCatching { container.polls.vote(poll.id, optionId, me.id) }
+                                }
+                            },
+                            onClose = {
+                                scope.launch { runCatching { container.polls.close(poll.id) } }
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -123,6 +151,8 @@ fun PollsTab(
         CreatePollDialog(
             onDismiss = { showCreate = false },
             onCreate = { question, options, anon ->
+                showCreate = false
+                isCreating = true
                 scope.launch {
                     runCatching {
                         container.polls.create(
@@ -133,10 +163,23 @@ fun PollsTab(
                             isAnonymous = anon,
                         )
                     }
+                    isCreating = false
                 }
-                showCreate = false
             },
         )
+    }
+}
+
+@Composable
+private fun LoadingState(label: String) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        CircularProgressIndicator(strokeWidth = 2.dp)
+        Spacer(Modifier.height(8.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -147,13 +190,17 @@ private fun PollCard(
     votes: List<PollVote>,
     myParticipantId: String,
     isHost: Boolean,
+    creatorName: String?,
+    creatorAvatar: Int?,
     onVote: (optionId: String) -> Unit,
     onClose: () -> Unit,
 ) {
     val total = votes.size
     val countsByOption = remember(votes) { votes.groupingBy { it.optionId }.eachCount() }
-    val myVote = remember(votes, myParticipantId) {
-        votes.firstOrNull { it.participantId == myParticipantId }?.optionId
+    val myVote by remember(votes, myParticipantId) {
+        derivedStateOf {
+            votes.firstOrNull { it.participantId == myParticipantId }?.optionId
+        }
     }
 
     Card(
@@ -162,9 +209,13 @@ private fun PollCard(
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                AvatarOrPlaceholder(avatarId = creatorAvatar, size = 28.dp)
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    poll.question,
-                    style = MaterialTheme.typography.titleMedium,
+                    text = creatorName ?: "—",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                 )
                 Text(
@@ -173,6 +224,11 @@ private fun PollCard(
                     color = MaterialTheme.colorScheme.secondary,
                 )
             }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                poll.question,
+                style = MaterialTheme.typography.titleMedium,
+            )
             Spacer(Modifier.height(10.dp))
             options.forEach { option ->
                 val count = countsByOption[option.id] ?: 0
@@ -201,6 +257,13 @@ private fun PollCard(
                     }
                 }
             }
+            if (poll.status == PollStatus.OPEN && myVote != null) {
+                Text(
+                    stringResource(Res.string.polls_change_vote_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -214,45 +277,57 @@ private fun PollOptionRow(
     canVote: Boolean,
     onClick: () -> Unit,
 ) {
-    val borderTint = if (selected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline
+    val container = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+    val fill = if (selected) {
+        MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f)
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+            .height(44.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(container)
+            .let { if (canVote) it.clickable(onClick = onClick) else it },
     ) {
-        // Filled progress bar.
+        // Filled progress bar lives in the same Box, not on top of a
+        // separate clickable layer — so a single clickable() drives the
+        // whole row. This fixes the "host can't vote" bug where the
+        // overlapping invisible TextButton swallowed the click.
         Box(
             modifier = Modifier
                 .fillMaxWidth(pct.coerceIn(0f, 1f))
-                .height(36.dp)
-                .background(MaterialTheme.colorScheme.secondaryContainer),
+                .height(44.dp)
+                .background(fill),
         )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                color = borderTint,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
             )
+            if (selected) {
+                Text(
+                    stringResource(Res.string.polls_my_vote),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(end = 8.dp),
+                )
+            }
             Text(
                 "$count",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-        if (canVote) {
-            // Stretched-but-invisible click target on top of the bar.
-            TextButton(
-                onClick = onClick,
-                modifier = Modifier.fillMaxWidth().height(36.dp),
-            ) { Text("") }
         }
     }
 }

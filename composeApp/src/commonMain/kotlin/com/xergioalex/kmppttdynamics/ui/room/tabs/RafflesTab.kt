@@ -2,6 +2,7 @@ package com.xergioalex.kmppttdynamics.ui.room.tabs
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,8 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -31,10 +34,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.xergioalex.kmppttdynamics.AppContainer
+import com.xergioalex.kmppttdynamics.domain.AppUser
 import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.domain.ParticipantRole
 import com.xergioalex.kmppttdynamics.domain.Raffle
@@ -42,6 +47,7 @@ import com.xergioalex.kmppttdynamics.domain.RaffleEntry
 import com.xergioalex.kmppttdynamics.domain.RaffleStatus
 import com.xergioalex.kmppttdynamics.domain.RaffleWinner
 import com.xergioalex.kmppttdynamics.raffles.RaffleBoard
+import com.xergioalex.kmppttdynamics.ui.components.AvatarImage
 import kmppttdynamics.composeapp.generated.resources.Res
 import kmppttdynamics.composeapp.generated.resources.action_cancel
 import kmppttdynamics.composeapp.generated.resources.raffles_close
@@ -68,17 +74,34 @@ fun RafflesTab(
     meetupId: String,
     me: MeetupParticipant,
     participantsById: Map<String, MeetupParticipant>,
+    usersByClientId: Map<String, AppUser>,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    var board by remember { mutableStateOf(RaffleBoard(emptyList(), emptyMap(), emptyMap())) }
+    var board by remember { mutableStateOf<RaffleBoard?>(null) }
     var showCreate by remember { mutableStateOf(false) }
+    var actionError by remember { mutableStateOf<String?>(null) }
     val isHost = me.role == ParticipantRole.HOST
 
     LaunchedEffect(meetupId) {
         container.raffles.observeBoard(meetupId)
-            .catch { /* later */ }
+            .catch { board = RaffleBoard(emptyList(), emptyMap(), emptyMap()) }
             .collect { board = it }
+    }
+
+    // Tiny helper that runs a suspending action and displays any
+    // exception inline. Keeps the UI from silently swallowing errors
+    // when the user clicks Enter / Draw / Enroll-all.
+    fun runAction(label: String, block: suspend () -> Unit) {
+        actionError = null
+        scope.launch {
+            try {
+                block()
+            } catch (t: Throwable) {
+                println("RafflesTab[$label] failed: ${t::class.simpleName}: ${t.message}")
+                actionError = "$label failed: ${t.message ?: t::class.simpleName}"
+            }
+        }
     }
 
     Column(modifier = modifier.fillMaxSize().padding(12.dp)) {
@@ -89,40 +112,62 @@ fun RafflesTab(
             ) { Text(stringResource(Res.string.raffles_create)) }
             Spacer(Modifier.height(12.dp))
         }
-        if (board.raffles.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    stringResource(Res.string.raffles_empty),
+        actionError?.let { msg ->
+            Text(
+                msg,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            )
+        }
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                board == null -> Text(
+                    "…",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp),
                 )
-            }
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(board.raffles, key = { it.id }) { raffle ->
-                    RaffleCard(
-                        raffle = raffle,
-                        entries = board.entries[raffle.id].orEmpty(),
-                        winners = board.winners[raffle.id].orEmpty(),
-                        meId = me.id,
-                        isHost = isHost,
-                        participantsById = participantsById,
-                        onEnter = {
-                            scope.launch { runCatching { container.raffles.enter(raffle.id, me.id) } }
-                        },
-                        onEnrollAll = {
-                            scope.launch {
-                                runCatching {
+                board!!.raffles.isEmpty() -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        stringResource(Res.string.raffles_empty),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(board!!.raffles, key = { it.id }) { raffle ->
+                        RaffleCard(
+                            raffle = raffle,
+                            entries = board!!.entries[raffle.id].orEmpty(),
+                            winners = board!!.winners[raffle.id].orEmpty(),
+                            meId = me.id,
+                            isHost = isHost,
+                            participantsById = participantsById,
+                            usersByClientId = usersByClientId,
+                            onEnter = {
+                                runAction("enter") {
+                                    container.raffles.enter(raffle.id, me.id)
+                                }
+                            },
+                            onEnrollAll = {
+                                runAction("enroll-all") {
                                     container.raffles.enrollAllParticipants(raffle.id, meetupId)
                                 }
-                            }
-                        },
-                        onDraw = {
-                            scope.launch { runCatching { container.raffles.drawWinner(raffle.id) } }
-                        },
-                        onClose = {
-                            scope.launch { runCatching { container.raffles.close(raffle.id) } }
-                        },
-                    )
+                            },
+                            onDraw = {
+                                runAction("draw") {
+                                    container.raffles.drawWinner(raffle.id)
+                                }
+                            },
+                            onClose = {
+                                runAction("close") {
+                                    container.raffles.close(raffle.id)
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -132,10 +177,10 @@ fun RafflesTab(
         CreateRaffleDialog(
             onDismiss = { showCreate = false },
             onCreate = { title ->
-                scope.launch {
-                    runCatching { container.raffles.create(meetupId, me.id, title) }
-                }
                 showCreate = false
+                runAction("create") {
+                    container.raffles.create(meetupId, me.id, title)
+                }
             },
         )
     }
@@ -149,6 +194,7 @@ private fun RaffleCard(
     meId: String,
     isHost: Boolean,
     participantsById: Map<String, MeetupParticipant>,
+    usersByClientId: Map<String, AppUser>,
     onEnter: () -> Unit,
     onEnrollAll: () -> Unit,
     onDraw: () -> Unit,
@@ -156,7 +202,14 @@ private fun RaffleCard(
 ) {
     val iAmIn = entries.any { it.participantId == meId }
     val firstWinner = winners.firstOrNull()
-    val winnerName = firstWinner?.let { participantsById[it.participantId]?.displayName }
+    val winnerParticipant = firstWinner?.let { participantsById[it.participantId] }
+    val winnerName = winnerParticipant?.displayName
+    val winnerAvatar = winnerParticipant?.clientId?.let { usersByClientId[it]?.avatarId }
+
+    fun avatarFor(participantId: String): Int? {
+        val p = participantsById[participantId] ?: return null
+        return p.clientId?.let { usersByClientId[it]?.avatarId }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -189,12 +242,20 @@ private fun RaffleCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            } else {
+                Spacer(Modifier.height(8.dp))
+                // Visual stack of entry avatars (up to 6) so the host can
+                // see at a glance who's already in the pool.
+                EntryAvatarStack(
+                    avatarIds = entries.take(6).mapNotNull { avatarFor(it.participantId) },
+                    extra = (entries.size - 6).coerceAtLeast(0),
+                )
             }
 
             // Winner reveal — animates in when a winner arrives.
             if (winnerName != null && raffle.status == RaffleStatus.DRAWN) {
                 Spacer(Modifier.height(10.dp))
-                WinnerReveal(name = winnerName)
+                WinnerReveal(name = winnerName, avatarId = winnerAvatar)
             }
 
             Spacer(Modifier.height(10.dp))
@@ -233,25 +294,71 @@ private fun RaffleCard(
 }
 
 @Composable
-private fun WinnerReveal(name: String) {
+private fun WinnerReveal(name: String, avatarId: Int?) {
     val scale by animateFloatAsState(
         targetValue = 1f,
         animationSpec = tween(durationMillis = 600),
         label = "winnerReveal",
     )
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale },
-        contentAlignment = Alignment.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (avatarId != null) {
+            AvatarImage(avatarId = avatarId, size = 84.dp)
+            Spacer(Modifier.height(6.dp))
+        }
         Text(
             stringResource(Res.string.raffles_winner, name),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.secondary,
         )
+    }
+}
+
+/**
+ * Stacked avatar bubbles — Discord-style "who's in the room" preview.
+ * Shows up to 5 avatars overlapping, plus a `+N` chip if there are
+ * more. Avatars are rendered in reverse order so the leftmost one
+ * appears on top.
+ */
+@Composable
+private fun EntryAvatarStack(avatarIds: List<Int>, extra: Int) {
+    if (avatarIds.isEmpty() && extra == 0) return
+    val overlap = (-12).dp
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        avatarIds.forEachIndexed { index, id ->
+            Box(
+                modifier = Modifier
+                    .padding(start = if (index == 0) 0.dp else overlap)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(2.dp),
+            ) {
+                AvatarImage(avatarId = id, size = 28.dp)
+            }
+        }
+        if (extra > 0) {
+            Box(
+                modifier = Modifier
+                    .padding(start = overlap)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "+$extra",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
     }
 }
 
