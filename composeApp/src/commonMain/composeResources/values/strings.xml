@@ -96,6 +96,7 @@
     <string name="hand_message_hint">Optional context (e.g. \"question on slide 12\")</string>
     <string name="hand_queue">Hand queue</string>
     <string name="hand_queue_empty">No hands raised right now.</string>
+    <string name="hand_clear_all">Clear all</string>
     <string name="hand_status_raised">Raised</string>
     <string name="hand_status_acknowledged">Acknowledged</string>
     <string name="hand_status_speaking">Speaking</string>

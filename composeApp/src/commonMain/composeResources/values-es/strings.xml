@@ -89,6 +89,7 @@
     <string name="hand_message_hint">Contexto opcional (ej. \"pregunta sobre la diapositiva 12\")</string>
     <string name="hand_queue">Cola de manos</string>
     <string name="hand_queue_empty">Nadie tiene la mano levantada.</string>
+    <string name="hand_clear_all">Limpiar todo</string>
     <string name="hand_status_raised">Levantada</string>
     <string name="hand_status_acknowledged">Reconocida</string>
     <string name="hand_status_speaking">Hablando</string>

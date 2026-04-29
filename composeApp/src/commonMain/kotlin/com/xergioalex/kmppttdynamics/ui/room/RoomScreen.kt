@@ -108,6 +108,19 @@ fun RoomScreen(
     // can promote/demote us, so always trust the latest server snapshot.
     val liveMe = participantsById[me.id] ?: me
     val isHost = liveMe.role == ParticipantRole.HOST
+    // The "owner" host is the original creator of the meetup. We
+    // identify them as the HOST participant with the earliest
+    // joined_at — no schema changes needed. Only this device gets
+    // promote/demote controls in the Members tab; secondary hosts
+    // get host capabilities (chat moderation, polls, raffles) but
+    // cannot reshape the host roster.
+    val ownerClientId = remember(state.participants) {
+        state.participants
+            .filter { it.role == ParticipantRole.HOST }
+            .minByOrNull { it.joinedAt }
+            ?.clientId
+    }
+    val isOwner = liveMe.clientId != null && liveMe.clientId == ownerClientId
     var showLeaveDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
@@ -154,6 +167,7 @@ fun RoomScreen(
                 RoomTab.MEMBERS -> MembersTab(
                     state = state,
                     isHost = isHost,
+                    isOwner = isOwner,
                     me = liveMe,
                     onSetStatus = vm::setStatus,
                     onSetRole = vm::setParticipantRole,
@@ -284,6 +298,13 @@ private fun OnlineBadge(count: Int) {
 private fun MembersTab(
     state: RoomUiState,
     isHost: Boolean,
+    /**
+     * The owner host (original meetup creator) is the only one who can
+     * reshape the host roster. Secondary hosts can moderate chat, run
+     * polls and raffles, but the promote / demote controls in the
+     * member list stay hidden for them.
+     */
+    isOwner: Boolean,
     me: MeetupParticipant,
     onSetStatus: (MeetupStatus) -> Unit,
     onSetRole: (participantId: String, role: ParticipantRole) -> Unit,
@@ -331,7 +352,11 @@ private fun MembersTab(
                             participant = p,
                             avatarId = state.usersByClientId[p.clientId]?.avatarId,
                             isMe = p.id == me.id,
-                            canPromote = isHost && p.id != me.id,
+                            // Only the owner host can reshape the host
+                            // roster. Secondary hosts retain every
+                            // other host capability but can't promote
+                            // or demote anyone.
+                            canPromote = isOwner && p.id != me.id,
                             onPromote = { onSetRole(p.id, ParticipantRole.HOST) },
                             onDemote = { onSetRole(p.id, ParticipantRole.PARTICIPANT) },
                         )

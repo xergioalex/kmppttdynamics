@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +46,7 @@ import kmppttdynamics.composeapp.generated.resources.hand_action_acknowledge
 import kmppttdynamics.composeapp.generated.resources.hand_action_dismiss
 import kmppttdynamics.composeapp.generated.resources.hand_action_lower
 import kmppttdynamics.composeapp.generated.resources.hand_action_speaking
+import kmppttdynamics.composeapp.generated.resources.hand_clear_all
 import kmppttdynamics.composeapp.generated.resources.hand_lower
 import kmppttdynamics.composeapp.generated.resources.hand_message_hint
 import kmppttdynamics.composeapp.generated.resources.hand_queue
@@ -126,11 +128,26 @@ fun HandTab(
         HorizontalDivider()
         Spacer(Modifier.height(12.dp))
 
-        Text(
-            stringResource(Res.string.hand_queue),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(Res.string.hand_queue),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            // Host-only one-shot to wipe every active hand. Only
+            // visible when the queue actually has something to clear.
+            if (isHost && !hands.isNullOrEmpty()) {
+                TextButton(onClick = {
+                    scope.launch { runCatching { container.hands.clearAll(meetupId) } }
+                }) {
+                    Text(stringResource(Res.string.hand_clear_all))
+                }
+            }
+        }
         Spacer(Modifier.height(8.dp))
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when {

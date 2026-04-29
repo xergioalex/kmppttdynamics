@@ -61,6 +61,33 @@ class HandRepository(private val supabase: SupabaseClient) {
             ) { filter { eq("id", handId) } }
     }
 
+    /**
+     * Host-only sweep: lowers every active hand in the meetup in a
+     * single round-trip. Filters by the three "active" statuses so we
+     * don't disturb already-lowered or dismissed history.
+     */
+    suspend fun clearAll(meetupId: String) {
+        supabase.from(TABLE)
+            .update(
+                mapOf(
+                    "status" to HandStatus.LOWERED.name.lowercase(),
+                    "lowered_at" to Clock.System.now().toString(),
+                ),
+            ) {
+                filter {
+                    eq("meetup_id", meetupId)
+                    isIn(
+                        "status",
+                        listOf(
+                            HandStatus.RAISED.name.lowercase(),
+                            HandStatus.ACKNOWLEDGED.name.lowercase(),
+                            HandStatus.SPEAKING.name.lowercase(),
+                        ),
+                    )
+                }
+            }
+    }
+
     /** Active-only list for the host queue, oldest raise first. */
     suspend fun listActive(meetupId: String): List<RaisedHand> =
         supabase.from(TABLE)
