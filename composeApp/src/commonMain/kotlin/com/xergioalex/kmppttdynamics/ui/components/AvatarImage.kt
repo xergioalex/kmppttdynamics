@@ -9,9 +9,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,14 +27,31 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.decodeToImageBitmap
 
 /**
+ * Process-wide cache of decoded avatar bitmaps keyed by avatar id.
+ *
+ * The first time [AvatarImage] is composed for an id we read the PNG
+ * from `composeResources/files/avatars/<id>.png` and decode it into an
+ * `ImageBitmap`. Decoding 132 different avatars during normal use is
+ * fine; **decoding the same avatar 20 times in 2 seconds during the
+ * raffle spin animation is not** — it makes the UI thread janky on
+ * Android. Stashing the decoded bitmap in this cache lets every
+ * subsequent composition (and the spin animation) reuse it for free.
+ *
+ * The cache is unbounded by design: 132 ImageBitmaps at 192×192 are
+ * only ≈ 20 MB total even if every single one ends up cached, which
+ * is acceptable for a session-scoped LRU we don't bother evicting.
+ */
+private val decodedAvatarCache: MutableMap<Int, ImageBitmap> = mutableMapOf()
+
+/**
  * Renders the bundled avatar at id [avatarId] (1-based, matching the
  * file `composeResources/files/avatars/<id>.png`).
  *
  * Avatars are loaded as raw bytes via the Compose Resources file API
- * and decoded into an ImageBitmap on first composition. The decoded
- * bitmap is `remember`ed so re-composition inside lazy lists doesn't
- * re-decode. A small placeholder shows the avatar id while the bytes
- * load — handy on the picker grid where 132 avatars stream in.
+ * and decoded into an `ImageBitmap`. The decoded bitmap is cached
+ * process-wide ([decodedAvatarCache]) so re-using the same id from a
+ * different call site (e.g. the same avatar in `EntryAvatarStack` and
+ * later in a `WinnerReveal` spin) doesn't re-decode the PNG.
  */
 @OptIn(ExperimentalResourceApi::class)
 @Composable
@@ -42,10 +61,22 @@ fun AvatarImage(
     size: Dp = 48.dp,
     contentDescription: String? = null,
 ) {
-    val bytes by produceState<ByteArray?>(initialValue = null, key1 = avatarId) {
-        value = runCatching { Res.readBytes("files/avatars/$avatarId.png") }.getOrNull()
+    // Recreating the state on every avatarId change lets us synchronously
+    // pick up cached bitmaps as the initial value — important for the
+    // raffle spin animation where avatarId flips ~20× per second and a
+    // null-flash between frames would look broken.
+    var bitmap: ImageBitmap? by remember(avatarId) {
+        mutableStateOf(decodedAvatarCache[avatarId])
     }
-    val bitmap: ImageBitmap? = remember(bytes) { bytes?.decodeToImageBitmap() }
+    LaunchedEffect(avatarId) {
+        if (bitmap != null) return@LaunchedEffect
+        val bytes = runCatching { Res.readBytes("files/avatars/$avatarId.png") }.getOrNull()
+        val decoded = bytes?.decodeToImageBitmap()
+        if (decoded != null) {
+            decodedAvatarCache[avatarId] = decoded
+        }
+        bitmap = decoded
+    }
     Box(
         modifier = modifier
             .size(size)
@@ -55,7 +86,7 @@ fun AvatarImage(
     ) {
         if (bitmap != null) {
             Image(
-                bitmap = bitmap,
+                bitmap = bitmap!!,
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),

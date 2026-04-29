@@ -147,6 +147,8 @@
     <string name="raffles_close">Close</string>
     <string name="raffles_entries">%1$d entries</string>
     <string name="raffles_winner">Winner: %1$s</string>
+    <string name="raffles_drawing">Drawing…</string>
+    <string name="raffles_relaunch">Relaunch raffle</string>
     <string name="raffles_no_entries">No one has entered yet.</string>
 
     <!-- Common -->

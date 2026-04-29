@@ -137,6 +137,8 @@
     <string name="raffles_close">Cerrar</string>
     <string name="raffles_entries">%1$d participantes</string>
     <string name="raffles_winner">Ganador: %1$s</string>
+    <string name="raffles_drawing">Sorteando…</string>
+    <string name="raffles_relaunch">Reabrir sorteo</string>
     <string name="raffles_no_entries">Aún nadie participa.</string>
 
     <string name="action_back">Atrás</string>

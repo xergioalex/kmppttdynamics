@@ -123,6 +123,25 @@ class RaffleRepository(private val supabase: SupabaseClient) {
             ) { filter { eq("id", raffleId) } }
     }
 
+    /**
+     * Resets a raffle so the host can re-draw with the same set of
+     * entrants. Wipes every winner row, flips the status back to
+     * `OPEN`, and clears `drawn_at` / `closed_at`. Entries are kept
+     * intentionally — the participants don't have to re-enroll.
+     */
+    suspend fun relaunch(raffleId: String) {
+        supabase.from(WINNERS).delete {
+            filter { eq("raffle_id", raffleId) }
+        }
+        supabase.from(RAFFLES).update({
+            set("status", RaffleStatus.OPEN.name.lowercase())
+            set("drawn_at", null as String?)
+            set("closed_at", null as String?)
+        }) {
+            filter { eq("id", raffleId) }
+        }
+    }
+
     suspend fun list(meetupId: String): List<Raffle> =
         supabase.from(RAFFLES)
             .select {

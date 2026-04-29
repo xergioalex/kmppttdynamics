@@ -55,6 +55,7 @@ import kmppttdynamics.composeapp.generated.resources.action_cancel
 import kmppttdynamics.composeapp.generated.resources.raffles_close
 import kmppttdynamics.composeapp.generated.resources.raffles_create
 import kmppttdynamics.composeapp.generated.resources.raffles_draw_winner
+import kmppttdynamics.composeapp.generated.resources.raffles_drawing
 import kmppttdynamics.composeapp.generated.resources.raffles_empty
 import kmppttdynamics.composeapp.generated.resources.raffles_enroll_all
 import kmppttdynamics.composeapp.generated.resources.raffles_enter
@@ -62,6 +63,7 @@ import kmppttdynamics.composeapp.generated.resources.raffles_entered
 import kmppttdynamics.composeapp.generated.resources.raffles_entries
 import kmppttdynamics.composeapp.generated.resources.raffles_field_title
 import kmppttdynamics.composeapp.generated.resources.raffles_no_entries
+import kmppttdynamics.composeapp.generated.resources.raffles_relaunch
 import kmppttdynamics.composeapp.generated.resources.raffles_status_closed
 import kmppttdynamics.composeapp.generated.resources.raffles_status_drawn
 import kmppttdynamics.composeapp.generated.resources.raffles_status_open
@@ -183,6 +185,11 @@ fun RafflesTab(
                                     container.raffles.close(raffle.id)
                                 }
                             },
+                            onRelaunch = {
+                                runAction("relaunch") {
+                                    container.raffles.relaunch(raffle.id)
+                                }
+                            },
                         )
                     }
                 }
@@ -217,6 +224,7 @@ private fun RaffleCard(
     onEnrollAll: () -> Unit,
     onDraw: () -> Unit,
     onClose: () -> Unit,
+    onRelaunch: () -> Unit,
 ) {
     val iAmIn = entries.any { it.participantId == meId }
     val firstWinner = winners.firstOrNull()
@@ -270,10 +278,21 @@ private fun RaffleCard(
                 )
             }
 
-            // Winner reveal — animates in when a winner arrives.
-            if (winnerName != null && raffle.status == RaffleStatus.DRAWN) {
+            // Winner reveal — for both DRAWN (just announced) and CLOSED
+            // (kept around so anyone scrolling later can see the result).
+            if (winnerName != null &&
+                (raffle.status == RaffleStatus.DRAWN || raffle.status == RaffleStatus.CLOSED)
+            ) {
                 Spacer(Modifier.height(10.dp))
-                WinnerReveal(name = winnerName, avatarId = winnerAvatar)
+                WinnerReveal(
+                    name = winnerName,
+                    avatarId = winnerAvatar,
+                    spinAvatarPool = entries.mapNotNull { avatarFor(it.participantId) },
+                    // Spin only when the raffle was JUST drawn — closed
+                    // raffles are historical, so we just render the
+                    // winner statically.
+                    animate = raffle.status == RaffleStatus.DRAWN,
+                )
             }
 
             Spacer(Modifier.height(10.dp))
@@ -308,43 +327,96 @@ private fun RaffleCard(
                             Text(stringResource(Res.string.raffles_close))
                         }
                     }
+                    if (raffle.status == RaffleStatus.DRAWN ||
+                        raffle.status == RaffleStatus.CLOSED
+                    ) {
+                        OutlinedButton(onClick = onRelaunch, enabled = !isWorking) {
+                            Text(stringResource(Res.string.raffles_relaunch))
+                        }
+                    }
                 }
             }
         }
     }
 }
 
+/**
+ * Reveals the raffle winner with a slot-machine style spin: cycles
+ * through the entrants' avatars, accelerating then decelerating, and
+ * settles on [avatarId] / [name] with a subtle bounce.
+ *
+ * - When [animate] is `false` (e.g. on a CLOSED raffle scrolled
+ *   into view long after the draw) the spin is skipped and the
+ *   winner is rendered statically.
+ * - When [animate] is `true` (raffle just transitioned to DRAWN),
+ *   the spin pulls random avatars from [spinAvatarPool] for ~1.6 s
+ *   in three phases (fast → slow → settle) before locking onto the
+ *   real winner.
+ *
+ * The avatar bitmaps are decoded once and cached by `AvatarImage` so
+ * the rapid cycling doesn't jank the UI thread.
+ */
 @Composable
-private fun WinnerReveal(name: String, avatarId: Int?) {
-    // Pop-in: scale 0 → 1 over 600 ms with a slight overshoot.
-    // `animateFloatAsState(targetValue = 1f)` defaults its initial
-    // value to the target, so without an `Animatable` driven by
-    // `LaunchedEffect` no animation actually runs — that's the bug
-    // we lived with for the first iteration.
-    val scale = remember { Animatable(0f) }
-    LaunchedEffect(name) {
-        scale.snapTo(0f)
-        scale.animateTo(1f, animationSpec = tween(durationMillis = 600))
+private fun WinnerReveal(
+    name: String,
+    avatarId: Int?,
+    spinAvatarPool: List<Int>,
+    animate: Boolean,
+) {
+    var displayedAvatar by remember(name, animate) { mutableStateOf(avatarId) }
+    var label by remember(name, animate) {
+        mutableStateOf(if (animate) SpinPhase.Spinning else SpinPhase.Settled)
     }
+    val scale = remember(name, animate) { Animatable(if (animate) 0.85f else 1f) }
+
+    LaunchedEffect(name, animate) {
+        if (!animate || spinAvatarPool.isEmpty()) {
+            displayedAvatar = avatarId
+            label = SpinPhase.Settled
+            scale.snapTo(1f)
+            return@LaunchedEffect
+        }
+        // Phase 1: fast cycling — 1.0 s @ 80 ms.
+        repeat(12) {
+            displayedAvatar = spinAvatarPool.random()
+            kotlinx.coroutines.delay(80)
+        }
+        // Phase 2: slowing down — ~600 ms with growing intervals.
+        listOf(120L, 160L, 220L, 300L).forEach { wait ->
+            displayedAvatar = spinAvatarPool.random()
+            kotlinx.coroutines.delay(wait)
+        }
+        // Phase 3: settle on the real winner with a tiny bounce.
+        displayedAvatar = avatarId
+        label = SpinPhase.Settled
+        scale.animateTo(1.12f, tween(durationMillis = 180))
+        scale.animateTo(1f, tween(durationMillis = 220))
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
+            .padding(vertical = 4.dp)
             .graphicsLayer { scaleX = scale.value; scaleY = scale.value },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (avatarId != null) {
-            AvatarImage(avatarId = avatarId, size = 84.dp)
+        if (displayedAvatar != null) {
+            AvatarImage(avatarId = displayedAvatar!!, size = 84.dp)
             Spacer(Modifier.height(6.dp))
         }
         Text(
-            stringResource(Res.string.raffles_winner, name),
+            text = when (label) {
+                SpinPhase.Spinning -> stringResource(Res.string.raffles_drawing)
+                SpinPhase.Settled -> stringResource(Res.string.raffles_winner, name)
+            },
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.secondary,
         )
     }
 }
+
+private enum class SpinPhase { Spinning, Settled }
 
 /**
  * Stacked avatar bubbles — Discord-style "who's in the room" preview.
