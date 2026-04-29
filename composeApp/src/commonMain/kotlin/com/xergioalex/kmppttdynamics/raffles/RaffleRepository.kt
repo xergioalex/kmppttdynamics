@@ -75,8 +75,20 @@ class RaffleRepository(private val supabase: SupabaseClient) {
      * Picks a random entry client-side and writes the winner. For
      * production this should move into a SECURITY DEFINER SQL function
      * or an Edge Function — see SECURITY.md.
+     *
+     * Guards against double-draws: rapid host taps used to insert
+     * multiple winner rows + multiple status updates and trigger an
+     * event storm on the realtime feed because there is no DB-level
+     * unique constraint on `(raffle_id)` in `raffle_winners`. Reading
+     * the current status before the insert keeps the second click a
+     * no-op.
      */
     suspend fun drawWinner(raffleId: String, random: Random = Random.Default): RaffleWinner? {
+        val current: Raffle = supabase.from(RAFFLES)
+            .select { filter { eq("id", raffleId) } }
+            .decodeSingle()
+        if (current.status != RaffleStatus.OPEN) return null
+
         val entries = listEntries(raffleId)
         if (entries.isEmpty()) return null
         val pick = entries[random.nextInt(entries.size)]
@@ -89,7 +101,15 @@ class RaffleRepository(private val supabase: SupabaseClient) {
                     "status" to RaffleStatus.DRAWN.name.lowercase(),
                     "drawn_at" to Clock.System.now().toString(),
                 ),
-            ) { filter { eq("id", raffleId) } }
+            ) {
+                filter {
+                    eq("id", raffleId)
+                    // Be paranoid about a race with another host: only
+                    // flip from OPEN, never overwrite a status set by
+                    // someone else in the same window.
+                    eq("status", RaffleStatus.OPEN.name.lowercase())
+                }
+            }
         return winner
     }
 

@@ -1,6 +1,6 @@
 package com.xergioalex.kmppttdynamics.ui.room.tabs
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -81,6 +81,13 @@ fun RafflesTab(
     var board by remember { mutableStateOf<RaffleBoard?>(null) }
     var showCreate by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
+    /**
+     * Identifier of the currently-running action. `null` while idle.
+     * Used to gate every host button so rapid double-taps don't fan
+     * out into a storm of inserts (which used to flood the realtime
+     * feed and block the UI thread on the resulting re-fetches).
+     */
+    var working by remember { mutableStateOf<String?>(null) }
     val isHost = me.role == ParticipantRole.HOST
 
     LaunchedEffect(meetupId) {
@@ -89,17 +96,24 @@ fun RafflesTab(
             .collect { board = it }
     }
 
-    // Tiny helper that runs a suspending action and displays any
-    // exception inline. Keeps the UI from silently swallowing errors
-    // when the user clicks Enter / Draw / Enroll-all.
+    /**
+     * Tiny helper that runs a suspending action exactly once at a
+     * time. While [working] is non-null, additional calls bail out
+     * — the UI also greys out every action button that participates,
+     * but this guard is the safety net.
+     */
     fun runAction(label: String, block: suspend () -> Unit) {
+        if (working != null) return
         actionError = null
+        working = label
         scope.launch {
             try {
                 block()
             } catch (t: Throwable) {
                 println("RafflesTab[$label] failed: ${t::class.simpleName}: ${t.message}")
                 actionError = "$label failed: ${t.message ?: t::class.simpleName}"
+            } finally {
+                working = null
             }
         }
     }
@@ -144,6 +158,7 @@ fun RafflesTab(
                             winners = board!!.winners[raffle.id].orEmpty(),
                             meId = me.id,
                             isHost = isHost,
+                            isWorking = working != null,
                             participantsById = participantsById,
                             usersByClientId = usersByClientId,
                             onEnter = {
@@ -193,6 +208,7 @@ private fun RaffleCard(
     winners: List<RaffleWinner>,
     meId: String,
     isHost: Boolean,
+    isWorking: Boolean,
     participantsById: Map<String, MeetupParticipant>,
     usersByClientId: Map<String, AppUser>,
     onEnter: () -> Unit,
@@ -268,22 +284,25 @@ private fun RaffleCard(
                             color = MaterialTheme.colorScheme.secondary,
                         )
                     } else {
-                        Button(onClick = onEnter) {
+                        Button(onClick = onEnter, enabled = !isWorking) {
                             Text(stringResource(Res.string.raffles_enter))
                         }
                     }
                 }
                 if (isHost) {
                     if (raffle.status == RaffleStatus.OPEN) {
-                        OutlinedButton(onClick = onEnrollAll) {
+                        OutlinedButton(onClick = onEnrollAll, enabled = !isWorking) {
                             Text(stringResource(Res.string.raffles_enroll_all))
                         }
-                        OutlinedButton(onClick = onDraw, enabled = entries.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = onDraw,
+                            enabled = !isWorking && entries.isNotEmpty(),
+                        ) {
                             Text(stringResource(Res.string.raffles_draw_winner))
                         }
                     }
                     if (raffle.status == RaffleStatus.DRAWN) {
-                        OutlinedButton(onClick = onClose) {
+                        OutlinedButton(onClick = onClose, enabled = !isWorking) {
                             Text(stringResource(Res.string.raffles_close))
                         }
                     }
@@ -295,16 +314,21 @@ private fun RaffleCard(
 
 @Composable
 private fun WinnerReveal(name: String, avatarId: Int?) {
-    val scale by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = tween(durationMillis = 600),
-        label = "winnerReveal",
-    )
+    // Pop-in: scale 0 → 1 over 600 ms with a slight overshoot.
+    // `animateFloatAsState(targetValue = 1f)` defaults its initial
+    // value to the target, so without an `Animatable` driven by
+    // `LaunchedEffect` no animation actually runs — that's the bug
+    // we lived with for the first iteration.
+    val scale = remember { Animatable(0f) }
+    LaunchedEffect(name) {
+        scale.snapTo(0f)
+        scale.animateTo(1f, animationSpec = tween(durationMillis = 600))
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale },
+            .graphicsLayer { scaleX = scale.value; scaleY = scale.value },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (avatarId != null) {
