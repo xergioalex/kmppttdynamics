@@ -19,7 +19,8 @@ supabase/migrations/
 ├── 003_dedupe_participants.sql  # one-shot fix: collapse duplicate participants
 ├── 004_add_client_id.sql        # adds `meetup_participants.client_id` + unique index
 ├── 005_reset_data.sql           # wipe room data after the client_id refactor
-└── 006_app_users.sql            # cross-meetup profile (display name + unique avatar)
+├── 006_app_users.sql            # cross-meetup profile (display name + unique avatar)
+└── 007_trivia.sql               # Kahoot-style trivia: 4 tables + view + scoring trigger
 ```
 
 Run them all by setting up `.env` and executing:
@@ -179,6 +180,58 @@ The migration also:
 
 See [Identity & avatars](IDENTITY_AND_AVATARS.md) for the full data
 flow and how the picker uses this table.
+
+## 007 — Kahoot-style trivia
+
+Adds the **first server-authoritative live game** to the app: four
+tables, one view, and one BEFORE-INSERT trigger that owns scoring.
+
+```
+trivia_quizzes      ← lifecycle row (draft / lobby / in_progress / calculating / finished)
+   │
+   ├── trivia_questions       ← N per quiz, ordered by `position`
+   │      │
+   │      └── trivia_choices  ← exactly 4 per question (Kahoot-style)
+   │
+   └── trivia_answers         ← (question_id, client_id) UNIQUE
+                                  ↑ idempotent retries; client only sends
+                                    (quiz, question, choice, participant);
+                                    BEFORE INSERT trigger fills is_correct,
+                                    response_ms, points_awarded.
+
+trivia_leaderboard (view)     ← aggregates trivia_answers per (quiz, client),
+                                joined to app_users for display name + avatar.
+```
+
+Notable design choices:
+
+- **`current_question_started_at`** on `trivia_quizzes` is the single
+  source of truth for every device's countdown timer. Local clocks
+  decide rendering only; the trigger reads `now() - current_question_
+  started_at` server-side to compute `response_ms`.
+- **Server-side scoring** lives in `trivia_compute_answer_score`
+  (BEFORE INSERT). The client only sends the chosen `choice_id`; the
+  trigger fills correctness, response time, and Kahoot's
+  `500 + 500 * (1 - elapsed/total)` formula. Sending pre-computed
+  `points_awarded` from the client is silently overwritten.
+- **Late-insert guard**: if the host already advanced past a question
+  by the time an answer arrives (the user tapped at t = 0 and the
+  network race lost), the trigger compares
+  `q.position` against `tq.current_question_index` and clamps
+  `response_ms` to the full window — score caps at 500 (correct) or
+  0 (wrong), never the +1 000 instant-correct bonus. Prevents the
+  network-race scoring exploit.
+- **WHERE-guarded UPDATEs** on `current_question_index` so two co-host
+  clicks (or a retry storm) collapse to one winning row change.
+- The `trivia_leaderboard` view is **granted SELECT** to `anon`,
+  `authenticated` explicitly. Views don't inherit the bulk grant from
+  `001` because they're created after the schema-level grant runs.
+- All four tables are added to `supabase_realtime`. The view isn't —
+  the client subscribes to `trivia_answers` and re-fetches the
+  leaderboard on each change instead.
+
+For the full reasoning, the per-screen UI breakdown, animation
+catalog, and edge cases, read [TRIVIA.md](TRIVIA.md).
 
 ## Adding a new migration
 

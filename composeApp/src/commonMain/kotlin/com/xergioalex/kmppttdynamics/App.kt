@@ -35,6 +35,13 @@ private sealed interface Screen {
     data object Create : Screen
     data object EditProfile : Screen
     data class Room(val meetupId: String, val me: MeetupParticipant) : Screen
+
+    /**
+     * Pops the profile editor on top of an active room and remembers
+     * which room to bounce back to when the user finishes (or cancels).
+     * Lets the user fix their avatar / name without leaving the meetup.
+     */
+    data class RoomEditProfile(val returnTo: Room) : Screen
 }
 
 @Composable
@@ -97,6 +104,14 @@ fun App(container: AppContainer) {
                     meetupId = s.meetupId,
                     me = s.me,
                     onLeave = { screen = Screen.Home },
+                    onEditProfile = { screen = Screen.RoomEditProfile(s) },
+                )
+
+                is Screen.RoomEditProfile -> OnboardingScreen(
+                    container = container,
+                    editing = true,
+                    onComplete = { screen = s.returnTo },
+                    onCancel = { screen = s.returnTo },
                 )
             }
         }

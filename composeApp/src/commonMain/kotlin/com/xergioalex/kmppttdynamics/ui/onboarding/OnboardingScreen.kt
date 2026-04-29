@@ -78,7 +78,12 @@ fun OnboardingScreen(
     onCancel: (() -> Unit)? = null,
 ) {
     val vm: OnboardingViewModel = viewModel(key = "onboarding-$editing") {
-        OnboardingViewModel(container.users, container.settings, editing)
+        OnboardingViewModel(
+            users = container.users,
+            participants = container.participants,
+            settings = container.settings,
+            editing = editing,
+        )
     }
     val state by vm.state.collectAsStateWithLifecycle()
     var showPicker by remember { mutableStateOf(false) }

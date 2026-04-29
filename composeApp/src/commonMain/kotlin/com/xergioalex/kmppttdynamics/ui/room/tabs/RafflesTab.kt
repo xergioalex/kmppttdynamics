@@ -68,6 +68,8 @@ import kmppttdynamics.composeapp.generated.resources.raffles_status_closed
 import kmppttdynamics.composeapp.generated.resources.raffles_status_drawn
 import kmppttdynamics.composeapp.generated.resources.raffles_status_open
 import kmppttdynamics.composeapp.generated.resources.raffles_winner
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -280,18 +282,32 @@ private fun RaffleCard(
 
             // Winner reveal — for both DRAWN (just announced) and CLOSED
             // (kept around so anyone scrolling later can see the result).
+            //
+            // The spin animation must fire only at the *moment* the host
+            // pressed Draw, not every time the user re-opens the Raffles
+            // tab on an already-drawn raffle. We detect "just drawn" by
+            // comparing `drawn_at` (the server timestamp) against the
+            // local clock with a generous 10 s freshness window:
+            //   - Host's device sets drawn_at = now() in the same UPDATE
+            //     that flips status to DRAWN, so every connected client
+            //     receives a row whose drawn_at is < ~1 s old via realtime.
+            //   - On re-entry into the tab seconds or minutes later,
+            //     drawn_at is well past the window → static render.
+            //   - CLOSED is always static (it's historical from the start).
+            //
+            // Stateless and survives tab unmount/remount; no need to
+            // hoist a "seen-set" up to RoomScreen.
             if (winnerName != null &&
                 (raffle.status == RaffleStatus.DRAWN || raffle.status == RaffleStatus.CLOSED)
             ) {
                 Spacer(Modifier.height(10.dp))
+                val animateReveal = raffle.status == RaffleStatus.DRAWN &&
+                    raffle.drawnAt?.let { (Clock.System.now() - it) < 10.seconds } == true
                 WinnerReveal(
                     name = winnerName,
                     avatarId = winnerAvatar,
                     spinAvatarPool = entries.mapNotNull { avatarFor(it.participantId) },
-                    // Spin only when the raffle was JUST drawn — closed
-                    // raffles are historical, so we just render the
-                    // winner statically.
-                    animate = raffle.status == RaffleStatus.DRAWN,
+                    animate = animateReveal,
                 )
             }
 

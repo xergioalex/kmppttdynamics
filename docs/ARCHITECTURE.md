@@ -64,7 +64,7 @@ KMPPTTDynamics/
 │       │   │   ├── appusers/              # AppUserRepository — cross-meetup profile + realtime
 │       │   │   ├── meetups/               # MeetupRepository — REST + realtime channel
 │       │   │   ├── participants/          # ParticipantRepository — find-then-update join, claim, role
-│       │   │   ├── chat/, handraise/, qa/, polls/, raffles/  # one repo per realtime feed
+│       │   │   ├── chat/, handraise/, qa/, polls/, raffles/, trivia/  # one repo per realtime feed
 │       │   │   ├── presence/              # GlobalPresenceTracker (Realtime Presence on `app_lobby`)
 │       │   │   ├── settings/AppSettings   # theme + profile + per-meetup cache + installClientId
 │       │   │   └── ui/                    # onboarding, home, create, room, theme, components

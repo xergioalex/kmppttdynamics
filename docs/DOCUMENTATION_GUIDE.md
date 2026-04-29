@@ -18,6 +18,10 @@ When and how to update the docs that live in this repo. The goal is to keep `AGE
 | `docs/BUILD_DEPLOY.md` | Release pipeline per target | Signing / R8 / CI pipeline changes |
 | `docs/I18N_GUIDE.md` | Localization workflow | Adding/removing a supported language |
 | `docs/PERFORMANCE.md` | Optimization rules | A perf decision is made (e.g., R8 enabled, baseline profile) |
+| `docs/REALTIME_PATTERNS.md` | Supabase Realtime conventions and gotchas | A new realtime feed pattern is established (e.g., the multi-channel-per-feature one for Trivia, the freshness-window one for one-shot animations) |
+| `docs/IDENTITY_AND_AVATARS.md` | Cross-meetup identity, avatar rules, role visualization | Profile flow changes, new avatar surfaces, role / capability rules change |
+| `docs/TRIVIA.md` | Kahoot-style live game (state machine, scoring, animations) | The trivia feature evolves (new sub-screen, new edge case, advance logic moves server-side) |
+| `docs/MIGRATIONS.md` | Per-file SQL migration rationale | Every new migration |
 | `docs/ACCESSIBILITY.md` | A11y rules | A11y conventions change |
 | `docs/SECURITY.md` | Security baseline | Adding auth, secrets, secure storage, releasing to a store |
 | `docs/AI_AGENT_ONBOARDING.md` | First-run flow for any AI agent | The onboarding path changes |

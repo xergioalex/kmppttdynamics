@@ -92,7 +92,7 @@ composeApp/
     │   ├── appusers/                      # AppUserRepository (cross-meetup profile + realtime)
     │   ├── meetups/                       # MeetupRepository
     │   ├── participants/                  # ParticipantRepository (find-then-update join, claim, role mgmt)
-    │   ├── chat/, handraise/, qa/, polls/, raffles/   # one repo per realtime feed
+    │   ├── chat/, handraise/, qa/, polls/, raffles/, trivia/   # one repo per realtime feed
     │   ├── presence/                      # GlobalPresenceTracker (Realtime Presence on app_lobby)
     │   ├── settings/AppSettings.kt        # theme + profile + per-meetup cache + installClientId
     │   └── ui/{onboarding,home,create,room,theme,components}
@@ -385,9 +385,20 @@ fun observe(meetupId: String): Flow<List<X>> = flow {
 }
 ```
 
+### 8. Server-Authoritative Game Timing (Trivia)
+
+For time-bounded games (Trivia is the first), keep the **server timestamp the source of truth**: store `current_question_started_at` (and any "deadline" anchor) on the Postgres row, and have every client compute `remaining = (started + window) - Clock.System.now()` locally. The visual countdown is rendering only — never use it to decide lifecycle transitions.
+
+State transitions follow a **single-actor with idempotent guard** pattern:
+- The host's device fires the `advance` UPDATE.
+- The UPDATE clauses include `WHERE current_question_index = expectedIndex AND status = 'in_progress'` so a doubled host click, a reconnect retry, or two co-hosts both pressing "Skip" reduces to one winning row change.
+- "Calculating → finished" is the exception: every device runs the 10 s timer locally and any of them can fire `finishCalculating(quizId)`. The same `WHERE status='calculating'` guard keeps the n-many fires reduced to one.
+
+Game scoring (and any other tamper-sensitive computation) belongs in a Postgres **trigger**, not the client. The Trivia score lives in `trivia_compute_answer_score` (BEFORE INSERT on `trivia_answers`) — the client only sends `(quiz, question, choice, participant)` and the trigger fills in `is_correct`, `response_ms`, and `points_awarded`. The trigger also detects late inserts (the host already advanced past the question) by comparing the question's `position` against `current_question_index` and clamps `elapsed_ms` to the full window so a network race can't gift +1 000 pts.
+
 ## Documentation Standards
 
-Update docs after: adding source sets, changing target list, bumping major dependency versions, adding npm/Gradle scripts, establishing patterns, adding `expect`/`actual` boundaries, adding new platform-specific resources, **adding a new realtime feed or table**. See **[Documentation Guide](docs/DOCUMENTATION_GUIDE.md)**.
+Update docs after: adding source sets, changing target list, bumping major dependency versions, adding npm/Gradle scripts, establishing patterns, adding `expect`/`actual` boundaries, adding new platform-specific resources, **adding a new realtime feed or table**, **adding a new game whose lifecycle depends on server timestamps**. See **[Documentation Guide](docs/DOCUMENTATION_GUIDE.md)**.
 
 ## Common Mistakes to Avoid
 
@@ -411,6 +422,8 @@ Update docs after: adding source sets, changing target list, bumping major depen
 16. Subscribe to a Supabase Realtime channel without an `unsubscribe()` in a `finally` block — leaks pile up fast.
 17. Add `@JsExport`-style configuration to BuildKonfig (`exposeObjectWithName`); Kotlin/Wasm rejects it on standalone objects.
 18. Put `/rest/v1/` in `SUPABASE_URL` — the SDK appends paths itself.
+19. Compute trivia scores (or any tamper-sensitive value) on the client. The `trivia_compute_answer_score` Postgres trigger is the single source of truth — sending pre-computed `points_awarded` from the client would be ignored by the trigger anyway.
+20. Drive a multiplayer game's lifecycle off a local timer alone — always anchor it to a server timestamp (`current_question_started_at`, `calculating_started_at`) so all devices stay in sync regardless of clock skew.
 
 ### DO:
 

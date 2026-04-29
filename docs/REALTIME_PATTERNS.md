@@ -2,11 +2,11 @@
 
 Every live UI in the app is powered by a Supabase Realtime channel
 plus a REST refresh on every change. The pattern is uniform across
-seven repositories — `meetups`, `participants`, `chat`, `hands`,
-`questions`, `polls`, `raffles`, `app_users` — and follows the same
-shape so a new feature can copy the template verbatim.
+nine repositories — `meetups`, `participants`, `chat`, `hands`,
+`questions`, `polls`, `raffles`, `trivia`, `app_users` — and follows
+the same shape so a new feature can copy the template verbatim.
 
-This page documents the contract, the gotchas we hit during M1–M5,
+This page documents the contract, the gotchas we hit during M1–M7,
 and the helper utility every observer must use.
 
 ## The standard observer template
@@ -196,10 +196,80 @@ these hold:
 - [ ] The corresponding table is in the `supabase_realtime` publication
       (verify in the migration).
 
+## 9 · Per-feature multi-channel pattern (Trivia)
+
+`TriviaRepository` is the first feature with **three concurrent
+channels per active quiz** instead of one. Each has a different
+lifetime and a different consumer:
+
+| Flow | Lifetime | Consumer |
+|---|---|---|
+| `observeBoard(meetupId)` | always-on while the Trivia tab is mounted | drives the `status` router |
+| `observeAnswers(quizId)` | only while `status = in_progress` | host's "X / N answered" counter |
+| `observeLeaderboard(quizId)` | only while `status = finished` | leaderboard reveal |
+
+All three obey every rule from sections 1–8 above (unique topic,
+catch-up emit, `try { } finally { unsubscribe }`). The reason we don't
+collapse them into a single board flow is cardinality: the answers
+table emits *very* frequently during the round (one row per
+participant per question), the board changes mostly during setup, and
+the leaderboard view is a derived read after every answer. Splitting
+them keeps the per-channel listener load minimal.
+
+When designing a future feature with similarly different cardinalities
+across child tables, follow this pattern instead of one giant
+`observeBoard`.
+
+See [TRIVIA.md](TRIVIA.md) for the full design.
+
+## 10 · The "freshness window" pattern (one-shot animations)
+
+Some UIs need to fire an animation **only at the moment of a state
+transition**, not every time the user re-enters a screen on a row that
+has already transitioned. The classic example is the Raffles tab's
+`WinnerReveal` slot-machine spin: it should play when the host taps
+"Draw", and on every device that's listening, but not when someone
+re-opens the tab three minutes later.
+
+The pattern uses the existing server timestamp as the freshness anchor:
+
+```kotlin
+val animateReveal = raffle.status == RaffleStatus.DRAWN &&
+    raffle.drawnAt?.let { (Clock.System.now() - it) < 10.seconds } == true
+```
+
+Why timestamps and not a "seen-set":
+
+- **Stateless** — survives tab unmount/remount, app restart, hot
+  reload without any state hoisting.
+- **Robust to clock skew** — a generous window (10 s) tolerates
+  ±2 s NTP drift without falsing.
+- **Single source of truth** is the server (`drawn_at` is set in the
+  same UPDATE that flips the status), so every device that's
+  listening at the moment of the transition sees roughly the same
+  freshness, regardless of when they last opened the screen.
+
+When to use it:
+
+- One-shot reveal animations triggered by a row state change.
+- Confetti / party-bursts / progress jumps tied to a server event.
+
+When **not** to use it:
+
+- Long-running animations (>~30 s) — clock skew gets uncomfortable.
+- Per-user "first-time" animations — those need a persisted
+  `seen-set` in `AppSettings` because the timestamp doesn't carry
+  per-user context.
+
+Reference implementation: `ui/room/tabs/RafflesTab.kt`'s
+`WinnerReveal` call site.
+
 ## Reference implementations
 
 - `appusers/AppUserRepository.kt` — global table without `meetup_id`.
 - `participants/ParticipantRepository.kt` — meetup-scoped table.
 - `polls/PollRepository.kt` — multi-table snapshot (`PollBoard` joins
   three flows in one channel using `merge`).
+- `trivia/TriviaRepository.kt` — three feeds with different lifetimes
+  on three separate channels (see §9).
 - `presence/GlobalPresenceTracker.kt` — Presence (not `postgresChangeFlow`).

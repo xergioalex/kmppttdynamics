@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.xergioalex.kmppttdynamics.appusers.AppUserRepository
 import com.xergioalex.kmppttdynamics.domain.AppUser
 import com.xergioalex.kmppttdynamics.domain.AppUserDraft
+import com.xergioalex.kmppttdynamics.participants.ParticipantRepository
 import com.xergioalex.kmppttdynamics.settings.AppSettings
 import com.xergioalex.kmppttdynamics.ui.components.TOTAL_AVATARS
 import kotlin.random.Random
@@ -48,6 +49,7 @@ data class OnboardingUiState(
 
 class OnboardingViewModel(
     private val users: AppUserRepository,
+    private val participants: ParticipantRepository,
     private val settings: AppSettings,
     /** True when launched from the home profile chip (re-pick name / avatar). */
     private val editing: Boolean,
@@ -119,6 +121,11 @@ class OnboardingViewModel(
                     ),
                 )
                 settings.setProfile(saved.displayName, saved.avatarId)
+                // Propagate the new name to every meetup_participants row
+                // this device owns so chat / Q&A / members lists stop
+                // showing the old name. Best-effort: a transient
+                // failure here shouldn't block the local save.
+                runCatching { participants.syncDisplayName(clientId, saved.displayName) }
                 _state.update { it.copy(isSaving = false, finished = saved) }
             } catch (t: Throwable) {
                 _state.update { it.copy(isSaving = false, errorMessage = t.message ?: "save_failed") }

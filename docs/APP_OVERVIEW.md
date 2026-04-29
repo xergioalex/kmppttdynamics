@@ -14,7 +14,7 @@ App
         ├── Q&A with upvotes
         ├── Polls
         ├── Raffles                             ← avatar stack of entrants + winner reveal
-        ├── Trivia (later)
+        ├── Trivia                              ← Kahoot-style multi-Q quiz with podium reveal
         ├── Reactions (later)
         └── Live Activity Feed
 ```
@@ -49,16 +49,18 @@ Anonymous participation is allowed in the MVP — host-only enforcement is curre
 | **M4** | **Polls (single-choice, anonymous default)**   | ✅ Implemented |
 | **M5** | **Raffles (host-side draw + reveal)**          | ✅ Implemented |
 | **M6** | **Cross-meetup profile (display name + unique avatar)** | ✅ Implemented |
-| M7 | Host dashboard polish, projection-friendly views | ⏳ Planned |
-| M8+ | Trivia, reactions, leaderboard, QR check-in, Supabase Auth, hardened RLS, Edge Functions, analytics, history exports | ⏳ Planned |
+| **M7** | **Trivia (Kahoot-style timed quiz with podium leaderboard)** | ✅ Implemented |
+| M8 | Host dashboard polish, projection-friendly views | ⏳ Planned |
+| M9+ | Reactions, QR check-in, Supabase Auth, hardened RLS, Edge Functions, analytics, history exports | ⏳ Planned |
 
 ### What works today
 
 - **Onboarding & profile**: first-launch screen picks a unique avatar (1 of 132 bundled) + a display name. Both are persisted locally and on the server. Tapping the home profile chip re-opens the picker for editing.
 - **Avatar uniqueness, real-time**: `app_users.avatar_id` is a database-level UNIQUE column; the picker grid renders taken avatars locked with a 🔒 overlay and "Used by <name>" subtitle the moment another device claims one.
 - **No-prompt joins**: tapping a meetup card auto-resolves the device's seat (server lookup by `client_id`, fallback to the local cache, fallback to a fresh `participants.join`). The old "pick your name" screen is gone — the profile follows the user into every room.
-- **Avatars everywhere in the room**: Members, Chat (Discord-style row with avatar + name + bubble), Q&A (asker info row), Hand queue, Polls (creator info row), Raffles (overlapping `EntryAvatarStack` + 84 dp `WinnerReveal`).
-- **Auto-host on create + Members management**: meetup creator joins as `HOST`; any host can promote / demote others. Re-entry preserves role because the `(meetup_id, client_id)` upsert path keeps the existing role.
+- **Avatars everywhere in the room**: Members, Chat (Discord-style row with avatar + name + bubble), Q&A (asker info row), Hand queue, Polls (creator info row), Raffles (overlapping `EntryAvatarStack` + 84 dp `WinnerReveal`), Trivia (lobby grid + podium with confetti).
+- **Auto-host on create + Members management**: meetup creator joins as `HOST` (rendered with an "owner" pill in the Members tab to distinguish them from co-hosts they later promote); any host can promote / demote others. The owner cannot demote themselves and stays the only one with the promote/demote roster controls. Re-entry preserves role because the `(meetup_id, client_id)` upsert path keeps the existing role.
+- **Trivia rounds**: host configures a quiz with N questions (4 colored choices each — red/triangle, blue/diamond, yellow/circle, green/square — exactly one correct), opens a lobby, and starts the round. Each device runs a synchronized countdown ring keyed off `current_question_started_at` (server-authoritative). Kahoot-style scoring lives in the `trivia_compute_answer_score` Postgres trigger (500..1 000 pts on correct, 0 on wrong, with a question-position guard so late inserts can't inflate). After the last question, every device runs a 10 s "calculating" suspense screen (timed off `calculating_started_at`) before the podium reveal — top 3 stagger in 3rd → 2nd → 1st with confetti on the winner row, and the rest scroll below.
 - **App-wide presence counter on Home** via Supabase Realtime Presence on a single `app_lobby` channel keyed by the install-stable client id.
 - **Room status** controls (start / pause / end), online + total participant counts, friendly status pills.
 - **6-character join codes** (alphabet excludes `0/O/1/I` for stage readability).
@@ -85,6 +87,7 @@ commonMain
   qa/             QuestionRepository (with question_votes upvote handling)
   polls/          PollRepository (PollBoard snapshot, upsert vote)
   raffles/        RaffleRepository (RaffleBoard snapshot, host-side draw, upsert enter)
+  trivia/         TriviaRepository (TriviaBoard snapshot, host-driven advance, server-side scoring trigger)
   presence/       GlobalPresenceTracker (Realtime Presence on `app_lobby`)
   settings/       AppSettings — theme + profile + per-meetup participantId cache + installClientId
   ui/{onboarding,home,create,room,room/tabs,theme,components}
@@ -160,13 +163,18 @@ The full schema (chat, hand raises, questions, polls, raffles, activity events) 
 | `QuestionRepository.observe(meetupId)` | `questions_<meetupId>` | `questions` (+ votes) | Yes |
 | `PollRepository.observeBoard(meetupId)` | `polls_<meetupId>` | `polls` + `poll_options` + `poll_votes` | Yes |
 | `RaffleRepository.observeBoard(meetupId)` | `raffles_<meetupId>` | `raffles` + entries + winners | Yes |
+| `TriviaRepository.observeBoard(meetupId)` | `trivia_<meetupId>` | `trivia_quizzes` + `trivia_questions` + `trivia_choices` | Yes |
+| `TriviaRepository.observeAnswers(quizId)` | `trivia_answers_<quizId>` | `trivia_answers` | Per-quiz |
+| `TriviaRepository.observeLeaderboard(quizId)` | `trivia_lb_<quizId>` | `trivia_answers` (re-fetches `trivia_leaderboard` view) | Per-quiz |
 | `GlobalPresenceTracker` | `app_lobby` (static — Presence) | n/a (websocket) | No |
 
 Every observer above (except presence) wraps its topic with `uniqueRealtimeTopic(base)` to avoid the shared-channel teardown bug — read [Realtime Patterns](REALTIME_PATTERNS.md) before adding a new one.
 
-## What's deliberately NOT in M1–M6
+## What's deliberately NOT in M1–M7
 
-- **Trivia / reactions / leaderboard** — staged for later milestones.
+- **Reactions** — staged for later milestones.
+- **Trivia question media (images / audio)** — text-only in v1; uploads via Supabase Storage are a v2 follow-up. The schema (`trivia_questions`) is ready to grow a `media_url` column without breaking the existing trigger or view.
+- **Auto-advance fallback when host disconnects** — today the host's device fires the per-question advance. If they vanish mid-round, the quiz hangs until they return. v2 moves the advance into a Postgres `pg_cron` job or Edge Function so the round survives a host blip.
 - **Offline cache** — Supabase is the only source of truth. SQLDelight (which lived in the previous Todo iteration of this repo) is gone. An offline read cache is a follow-up.
 - **Supabase Auth** — the publishable key is the only credential today. M8 layers auth and tightens RLS.
 - **Hardened RLS** — current policies are permissive (anon can read/write anything). The migration calls this out with a `WARNING` block. See [Security](SECURITY.md) for the production hardening checklist.
@@ -176,8 +184,9 @@ Every observer above (except presence) wraps its topic with `uniqueRealtimeTopic
 ## Want the long version?
 
 - [Architecture](ARCHITECTURE.md) — source sets, expect/actual, Compose Multiplatform conventions
-- [Identity & avatars](IDENTITY_AND_AVATARS.md) — the spine of the user model + the picker UX
-- [Realtime patterns](REALTIME_PATTERNS.md) — the `observe*` template + the shared-channel gotcha
+- [Identity & avatars](IDENTITY_AND_AVATARS.md) — the spine of the user model, the picker UX, owner-vs-host visual ranks, in-room profile editing flow
+- [Realtime patterns](REALTIME_PATTERNS.md) — the `observe*` template, the shared-channel gotcha, multi-channel-per-feature for Trivia, freshness-window pattern for one-shot animations
+- [Trivia (Kahoot-style game)](TRIVIA.md) — full deep-dive: state machine, scoring trigger, time sync, sub-screens, animations, edge cases
 - [Migrations](MIGRATIONS.md) — what each SQL file does and why
 - [Technologies](TECHNOLOGIES.md) — full version catalog with rationale per dep
 - [Standards](STANDARDS.md) — Kotlin / Compose conventions, naming, expect/actual rules, serialization gotchas

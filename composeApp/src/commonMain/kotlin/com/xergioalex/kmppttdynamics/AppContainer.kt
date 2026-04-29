@@ -11,6 +11,7 @@ import com.xergioalex.kmppttdynamics.qa.QuestionRepository
 import com.xergioalex.kmppttdynamics.raffles.RaffleRepository
 import com.xergioalex.kmppttdynamics.settings.AppSettings
 import com.xergioalex.kmppttdynamics.supabase.SupabaseClientProvider
+import com.xergioalex.kmppttdynamics.trivia.TriviaRepository
 
 /**
  * DI-lite container. Held at the platform entry points and threaded
@@ -30,6 +31,7 @@ class AppContainer(val settings: AppSettings) {
     val questions: QuestionRepository       by lazy { QuestionRepository(SupabaseClientProvider.client) }
     val polls: PollRepository               by lazy { PollRepository(SupabaseClientProvider.client) }
     val raffles: RaffleRepository           by lazy { RaffleRepository(SupabaseClientProvider.client) }
+    val trivia: TriviaRepository            by lazy { TriviaRepository(SupabaseClientProvider.client) }
 
     /**
      * App-wide online counter via Realtime Presence. Started by the

@@ -62,6 +62,7 @@
     <string name="room_members_promote">Hacer host</string>
     <string name="room_members_demote">Quitar host</string>
     <string name="room_members_you">tú</string>
+    <string name="room_members_role_owner">creador</string>
     <string name="room_members_role_host">host</string>
     <string name="room_members_role_participant">participante</string>
     <string name="room_members_role_moderator">moderador</string>
@@ -73,6 +74,7 @@
     <string name="tab_polls">Encuestas</string>
     <string name="tab_raffles">Sorteos</string>
     <string name="tab_hand">Mano</string>
+    <string name="tab_trivia">Trivia</string>
 
     <string name="chat_input_hint">Escribe un mensaje…</string>
     <string name="chat_send">Enviar</string>
@@ -124,6 +126,48 @@
     <string name="polls_publish">Publicar encuesta</string>
     <string name="polls_my_vote">Tu voto</string>
     <string name="polls_change_vote_hint">Toca otra opción para cambiar tu voto.</string>
+
+    <string name="trivia_empty_host">Aún no hay trivia. Toca abajo para armar un quiz.</string>
+    <string name="trivia_empty_guest">El host aún no ha preparado la trivia.</string>
+    <string name="trivia_create">Crear trivia</string>
+    <string name="trivia_field_title">Título de la trivia</string>
+    <string name="trivia_default_title">Ronda 1</string>
+    <string name="trivia_setup_title">Configura la trivia</string>
+    <string name="trivia_setup_helper">Agrega preguntas, ajusta el tiempo y marca la respuesta correcta.</string>
+    <string name="trivia_setup_no_questions">Aún no hay preguntas — agrega la primera.</string>
+    <string name="trivia_question_n">Pregunta %1$d</string>
+    <string name="trivia_question_prompt">Texto de la pregunta</string>
+    <string name="trivia_question_seconds">Segundos: %1$d</string>
+    <string name="trivia_choice_label">Opción %1$d</string>
+    <string name="trivia_choice_correct">Respuesta correcta</string>
+    <string name="trivia_save_question">Guardar pregunta</string>
+    <string name="trivia_add_question">Agregar pregunta</string>
+    <string name="trivia_delete_question">Eliminar</string>
+    <string name="trivia_edit_question">Editar</string>
+    <string name="trivia_open_lobby">Abrir lobby</string>
+    <string name="trivia_open_lobby_helper">Cada pregunta necesita un texto y una respuesta correcta marcada.</string>
+    <string name="trivia_back_to_setup">Editar preguntas</string>
+    <string name="trivia_lobby_title">Esperando jugadores…</string>
+    <string name="trivia_lobby_summary">%1$d preguntas · ~%2$d s cada una</string>
+    <string name="trivia_lobby_start">Iniciar trivia</string>
+    <string name="trivia_lobby_no_questions">No puedes iniciar sin preguntas.</string>
+    <string name="trivia_question_header">Pregunta %1$d / %2$d</string>
+    <string name="trivia_seconds_remaining">%1$d s</string>
+    <string name="trivia_locked_in">Lista — esperando a los demás…</string>
+    <string name="trivia_answered_count">%1$d / %2$d respondieron</string>
+    <string name="trivia_skip">Saltar</string>
+    <string name="trivia_correct">+%1$d puntos</string>
+    <string name="trivia_wrong">Suerte en la próxima</string>
+    <string name="trivia_time_up">¡Se acabó el tiempo!</string>
+    <string name="trivia_calculating">Calculando resultados…</string>
+    <string name="trivia_calculating_helper">Tranqui — ya casi.</string>
+    <string name="trivia_leaderboard_title">Tabla final</string>
+    <string name="trivia_leaderboard_no_one">Nadie respondió. ¡Inténtenlo de nuevo!</string>
+    <string name="trivia_leaderboard_correct">%1$d correctas</string>
+    <string name="trivia_play_again">Jugar de nuevo</string>
+    <string name="trivia_new_round">Nueva trivia</string>
+    <string name="trivia_archive">Archivar trivia</string>
+    <string name="trivia_action_failed">Acción fallida: %1$s</string>
 
     <string name="raffles_create">Crear sorteo</string>
     <string name="raffles_empty">Aún no hay sorteos.</string>

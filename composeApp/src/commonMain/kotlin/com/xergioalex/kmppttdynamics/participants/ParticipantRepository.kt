@@ -124,6 +124,31 @@ class ParticipantRepository(private val supabase: SupabaseClient) {
             }
     }
 
+    /**
+     * Updates `display_name` on every participant row this device owns.
+     *
+     * The cross-meetup `app_users.display_name` is the canonical name
+     * (the leaderboard view reads from there), but the Members list,
+     * Chat, Q&A, Hand queue and Polls all key off
+     * `meetup_participants.display_name` — the row that was created at
+     * join time. Without this sync, editing the profile from inside
+     * the room would update the leaderboard but leave the chat author
+     * stuck on the old name. Calling this on every save keeps the
+     * three places consistent.
+     *
+     * Cheap query: filtered by the indexed `client_id` column, single
+     * UPDATE round trip, the realtime feed propagates the change to
+     * every connected device.
+     */
+    suspend fun syncDisplayName(clientId: String, displayName: String) {
+        val cleaned = displayName.trim()
+        if (cleaned.isEmpty()) return
+        supabase.from(TABLE)
+            .update(mapOf("display_name" to cleaned)) {
+                filter { eq("client_id", clientId) }
+            }
+    }
+
     suspend fun delete(participantId: String) {
         supabase.from(TABLE).delete { filter { eq("id", participantId) } }
     }

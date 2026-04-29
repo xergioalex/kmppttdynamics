@@ -106,16 +106,40 @@ There are three layers reinforcing this:
 
 Layers 1 + 2 are reactive — they rely on the realtime `users.observeAll()` feed staying healthy. Layer 3 is the safety net.
 
-## Profile chip on Home
+## Profile editing — three entry points
 
-`HomeScreen.ProfileChip` reads `container.settings.profile` (a `StateFlow<LocalProfile?>`) and renders the user's avatar + name + "Tap to change profile". Tapping navigates to `Screen.EditProfile`, which mounts `OnboardingScreen(editing = true)`.
+The profile editor (`OnboardingScreen(editing = true)`) is reachable from three places, all of which converge on the same `OnboardingViewModel.submit()`:
 
-Renaming or re-picking an avatar from there:
+| Entry point | Where in code | Returns to |
+|---|---|---|
+| Home profile chip | `HomeScreen.ProfileChip` → `Screen.EditProfile` | Home |
+| **Room header self chip** | `RoomScreen.SelfProfileChip` → `Screen.RoomEditProfile(returnTo)` | The same room |
+| First-launch onboarding (fresh install) | `App.kt` `if (profile == null)` gate | Home |
 
-- Updates `app_users` via `users.upsert(...)`.
-- Updates `AppSettings.profile` so the chip refreshes.
-- Does **not** retroactively rewrite `meetup_participants.display_name` for past meetups.
-  Re-joining (or `participants.join` running again as part of room re-entry) overwrites the participant row's `display_name` with the latest profile name.
+The room-header chip lives in `Header(...)` of `RoomScreen.kt` and shows a small avatar (28 dp ringed by surface) plus the user's display name truncated to 12 characters. Tapping it pushes `Screen.RoomEditProfile(returnTo = currentRoom)` so save / cancel bounces back into **the same room**, preserving the user's seat, the active tab, and any in-flight work. Without this entry point the user would have to leave the meetup, edit on Home, and re-join — which churns the participant row and defeats the no-prompt rejoin guarantee.
+
+### What `submit()` propagates server-side
+
+```kotlin
+val saved = users.upsert(AppUserDraft(clientId, displayName, avatarId))
+settings.setProfile(saved.displayName, saved.avatarId)
+
+// Propagate the new name to every meetup_participants row this device
+// owns so chat / Q&A / members lists in already-joined meetups stop
+// showing the old name.
+runCatching { participants.syncDisplayName(clientId, saved.displayName) }
+```
+
+`participants.syncDisplayName(clientId, displayName)` runs a single
+`UPDATE meetup_participants SET display_name = $name WHERE client_id = $cid`. Why this is necessary:
+
+- `app_users.display_name` is global. The Trivia leaderboard view, the avatar picker, and any new feature that joins to `app_users.display_name` get the new name automatically.
+- `meetup_participants.display_name` is **per-meetup, captured at join time**. The Members tab, Chat, Q&A, Hand queue, and Polls all read from there because they need the name as it was when the user joined for chat-history reasons.
+- Without this sync, editing your name from inside a room would update the leaderboard but leave chat showing your old name. The Sync UPDATE keeps both columns consistent.
+
+The realtime feed propagates the new participant rows automatically, so every other device in any room you've joined sees the updated name within a couple of hundred milliseconds.
+
+The `runCatching {}` makes the sync best-effort: a transient failure to update participants doesn't roll back the local profile save (which is what the user actually requested). If the sync fails, the next `participants.join` (e.g. the user re-enters a room) will overwrite the column anyway through the find-then-update path.
 
 ## What "join a meetup" looks like now
 
@@ -146,6 +170,10 @@ The `(meetup_id, client_id)` partial unique index is the hard guarantee: a devic
 | `PollsTab` poll cards | 28 dp (creator info row) | `poll.createdBy` → participant → user |
 | `RafflesTab` `EntryAvatarStack` | 28 dp, overlapping `-12 dp` | same |
 | `RafflesTab` `WinnerReveal` | 84 dp circle | same |
+| `RoomScreen.SelfProfileChip` (room header) | 26 dp inside a 28 dp ring | direct (from `AppSettings.profile`) |
+| `TriviaTab` `LobbyScreen` participant grid | 52 dp inside a 56 dp ring | `usersByClientId[participant.clientId]?.avatarId` |
+| `TriviaTab` `LeaderboardScreen` podium | 64 dp circle | direct (`leaderboardEntry.avatarId`, joined via `app_users` in the view) |
+| `TriviaTab` `LeaderboardScreen` rank rows | 36 dp circle | same |
 
 `AvatarOrPlaceholder` (in `tabs/ChatTab.kt`, `internal`) is the helper every tab reuses — it falls back to a `surfaceVariant` circle when `avatarId == null` so legacy / pre-migration rows keep the same row shape.
 
@@ -157,6 +185,56 @@ The `(meetup_id, client_id)` partial unique index is the hard guarantee: a devic
 4. **Trusting `client_id IS NULL` rows to belong to anyone**. They are pre-migration ghosts. Use `findByClientId` first; only fall back to claiming a NULL row when the local `participantIdFor(meetupId)` cache points to it.
 5. **Hardcoding `composeResources/files/avatars/<n>.png` paths somewhere other than `AvatarImage`**. Centralise the lookup so adding webp / dark-theme variants in the future is one change.
 
+## Roles in a meetup: owner vs host vs participant
+
+`MeetupParticipant.role` is one of `HOST`, `MODERATOR`, `PARTICIPANT`. The Members tab also surfaces a fourth visual rank — **owner** — that is a derived view, not a separate column.
+
+### Identifying the owner without a column
+
+Adding a fifth role to the database would mean a migration plus extra logic in every place that reads `role`. We avoid that by computing the owner client-side:
+
+```kotlin
+// RoomScreen.kt
+val ownerClientId = remember(state.participants) {
+    state.participants
+        .filter { it.role == ParticipantRole.HOST }
+        .minByOrNull { it.joinedAt }
+        ?.clientId
+}
+val isOwner = liveMe.clientId != null && liveMe.clientId == ownerClientId
+```
+
+The "owner" is whichever HOST has the earliest `joined_at` — i.e. the meetup creator (the one row inserted by `CreateMeetupViewModel.create()`, before any other participant could be promoted). Stable over the lifetime of the meetup because hosts created earlier always win the `minByOrNull`. If the owner ever leaves and re-enters, their `joined_at` is preserved by the find-then-update path in `ParticipantRepository.join`.
+
+### Visual ranks in the Members tab
+
+`RoomScreen.RolePill` renders a small colored chip per row. Color tokens are theme-aware:
+
+| Visual rank | Trigger | Pill color |
+|---|---|---|
+| **Owner** | `participant.clientId == ownerClientId` | `primaryContainer` |
+| Host | `participant.role == HOST` and not owner | `tertiaryContainer` |
+| Moderator | `participant.role == MODERATOR` | `secondaryContainer` |
+| Participant | else | `surfaceVariant` (muted) |
+
+### Capabilities that key off owner vs host
+
+| Action | Owner | Host (promoted) | Participant |
+|---|---|---|---|
+| Promote / demote others in Members tab | ✓ | ✗ | ✗ |
+| Demote themselves | ✗ (locked — would orphan the room) | n/a | n/a |
+| Run polls / raffles / trivia | ✓ | ✓ | ✗ |
+| Start / pause / end meetup | ✓ | ✓ | ✗ |
+| Hide chat messages | ✓ | ✓ | ✗ |
+
+The owner-can't-self-demote rule lives in `MembersTab`'s `canPromote` calculation:
+
+```kotlin
+canPromote = isOwner && p.id != me.id && !isParticipantOwner
+```
+
+Without `!isParticipantOwner`, a single-host owner could remove their own host role and leave the meetup with no admin.
+
 ## Where to look in the code
 
 | Concern | File |
@@ -167,5 +245,9 @@ The `(meetup_id, client_id)` partial unique index is the hard guarantee: a devic
 | Profile persistence | `settings/AppSettings.kt` (`profile` flow + `installClientId()`) |
 | Server-side identity | `appusers/AppUserRepository.kt`, `domain/AppUser.kt` |
 | Participant identity | `participants/ParticipantRepository.kt`, `domain/MeetupParticipant.kt` |
+| **Cross-meetup name sync** | `participants/ParticipantRepository.kt` → `syncDisplayName(clientId, name)` |
+| **Profile chip in room** | `ui/room/RoomScreen.kt` → `SelfProfileChip` |
+| **Owner-vs-host pill** | `ui/room/RoomScreen.kt` → `RolePill` + `ownerClientId` derivation |
+| **In-room edit profile route** | `App.kt` → `Screen.RoomEditProfile(returnTo)` |
 | Database schema | `supabase/migrations/006_app_users.sql`, `supabase/migrations/004_add_client_id.sql` |
 | Routing gate | `App.kt` (the `if (profile == null)` block) |
