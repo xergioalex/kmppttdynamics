@@ -8,6 +8,8 @@
 Built around the [Pereira Tech Talks](https://pereiratechtalks.com)
 community, but designed as a generic Meetup Dynamics platform.
 
+![Android Studio setup](assets/android_studio_setup.png)
+
 Targets, all from a single shared module:
 
 - **Android**
