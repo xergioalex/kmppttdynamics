@@ -1,5 +1,7 @@
 package com.xergioalex.kmppttdynamics.ui.room.tabs.trivia
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -16,12 +18,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +71,29 @@ fun CalculatingScreen(
         onFinish()
     }
 
+    // Tangible 0 % → 100 % progress over the full window so the user
+    // knows the screen is *doing* something rather than being frozen.
+    // We seed the Animatable from the same server timestamp the
+    // LaunchedEffect uses, so a late-joining client picks up where
+    // the round actually is instead of restarting from 0.
+    val initialFraction = remember(quiz.id, startedAt) {
+        if (startedAt == null) 0f else {
+            val now = Clock.System.now().toEpochMilliseconds()
+            val elapsed = (now - startedAt.toEpochMilliseconds())
+                .coerceIn(0L, TriviaTiming.CALCULATING_MS.toLong())
+            (elapsed.toFloat() / TriviaTiming.CALCULATING_MS).coerceIn(0f, 1f)
+        }
+    }
+    val progress = remember(quiz.id, startedAt) { Animatable(initialFraction) }
+    LaunchedEffect(quiz.id, startedAt) {
+        val remainingMs = ((1f - initialFraction) * TriviaTiming.CALCULATING_MS).toInt()
+        if (remainingMs <= 0) return@LaunchedEffect
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = remainingMs, easing = LinearEasing),
+        )
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -86,6 +115,17 @@ fun CalculatingScreen(
             stringResource(Res.string.trivia_calculating_helper),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(24.dp))
+        // 240 dp cap so the bar doesn't stretch full-width on tablets
+        // / desktop where the screen is much wider than tall.
+        LinearProgressIndicator(
+            progress = { progress.value },
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 240.dp)
+                .height(6.dp)
+                .clip(RoundedCornerShape(50)),
         )
     }
 }

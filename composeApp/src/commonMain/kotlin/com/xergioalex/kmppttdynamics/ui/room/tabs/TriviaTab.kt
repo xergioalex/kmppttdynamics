@@ -353,6 +353,20 @@ fun TriviaTab(
                         title = title,
                         createdByClientId = myClientId,
                     )
+                    // Auto-enroll the creator in their own quiz. Most
+                    // hosts want to play the trivia they're running;
+                    // skipping this step would force the host to tap
+                    // "Enter trivia" later or leave themselves out of
+                    // the leaderboard. They can still leave by tapping
+                    // the per-quiz "Leave" affordance (or just spectate
+                    // if they don't enroll their own row).
+                    runCatching {
+                        container.trivia.enter(
+                            quizId = created.id,
+                            participantId = me.id,
+                            clientId = myClientId,
+                        )
+                    }
                     // Auto-route the host into the editor for the
                     // freshly-created quiz so the next thing they see
                     // is the empty-state "Add question" CTA.

@@ -58,6 +58,20 @@ class JoinCodeGeneratorTest {
 }
 ```
 
+## Current tests (in this repo)
+
+| Suite | What it locks in |
+|---|---|
+| `ComposeAppCommonTest` | `JoinCodeGenerator` produces 6 alphanumeric chars without confusing glyphs (`0/O/1/I`) and with non-trivial RNG variance |
+| `SerializationTest` | The `@EncodeDefault` annotations on every `*Draft` class — guards against the kotlinx.serialization "drop defaults" gotcha that caused our 0 online / Draft polls / Draft raffles bugs. Covers `JoinRequest`, `PollDraft`, `RaffleDraft`, `TriviaQuizDraft`, `TriviaQuestionDraft`, `TriviaChoiceDraft`, `TriviaEntryDraft`, plus the `TriviaStatus` enum lowercase-kebab roundtrip |
+| `trivia.TriviaScoringTest` | The Kahoot scoring formula in [`TriviaScoring`](../composeApp/src/commonMain/kotlin/com/xergioalex/kmppttdynamics/trivia/TriviaScoring.kt). Locks the wrong-answer-zero, instant-correct-1000, last-second-500, midpoint-750, late-insert clamp behaviours that mirror the Postgres trigger |
+| `trivia.TriviaBoardTest` | The `TriviaBoard.live` getter — the routing rule that decides when the trivia tab takes over the screen |
+
+The trivia tests doubly serve as a parity contract with the Postgres
+trigger: any change to either the SQL formula (in
+`007_trivia.sql`'s `trivia_compute_answer_score`) or the Kotlin mirror
+(`TriviaScoring.kt`) must keep both sides matching.
+
 ## What `kotlin.test` gives you
 
 ```kotlin

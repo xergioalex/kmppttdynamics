@@ -366,10 +366,13 @@ Centralized in `ui/room/tabs/trivia/TriviaTheme.kt` so visual feel can be tuned 
 
 | Component | Animation | API |
 |---|---|---|
-| `QuestionScreen.CountdownRing` | Arc that drains; pulse in last `LAST_SECONDS_PULSE` (3) seconds | `Canvas` + `animateFloatAsState` + `rememberInfiniteTransition.animateFloat` |
-| `QuestionScreen.RevealBanner` | Scale-in + fade | `AnimatedVisibility(scaleIn + fadeIn)` |
+| `QuestionScreen` Q→Q+1 transition | Slide-in from right + slide-out to left over 320 ms (`EaseOutCubic`) | `AnimatedContent` keyed on `currentQuestionIndex`, `slideIn/OutHorizontally + fadeIn/Out` |
+| `QuestionScreen.CountdownRing` (88 dp) | Arc that drains; pulse in last `LAST_SECONDS_PULSE` (3) seconds; color shifts secondary → tertiary → error | `Canvas` + `animateFloatAsState` + `rememberInfiniteTransition.animateFloat` |
+| `QuestionScreen.ChoiceButton` press | Scales to 96 % while held | `interactionSource.collectIsPressedAsState` + `animateFloatAsState(120 ms)` |
+| `QuestionScreen.RevealBanner` | Scale-in + fade; **+N points rolls up from 0 over 700 ms** (`EaseOutCubic`) | `AnimatedVisibility(scaleIn + fadeIn)` + `Animatable` |
 | `CalculatingScreen.BreathingHalo` | Scale + alpha breathing | `rememberInfiniteTransition` (1 400 ms reverse) |
 | `CalculatingScreen.BreathingDots` | Triangle-wave stagger across 3 dots | Single `phase` float; per-dot offset |
+| `CalculatingScreen` progress bar | Linear fill from current fractionElapsed → 1 over remaining window | `Animatable` + `LinearProgressIndicator(progress = …)` |
 | `LeaderboardScreen.Podium` | 3rd → 2nd → 1st reveal | `Animatable` + `LaunchedEffect` |
 | `LeaderboardScreen.ConfettiOverlay` | 36 particles, fixed-seed | `drawBehind` + `infiniteTransition.animateFloat` |
 
@@ -382,6 +385,8 @@ The 4-color palette is **intentionally hardcoded** in `TriviaPalette` — these 
 | User joins meetup mid-round | Sees the current Q with a remaining countdown. Without an enrollment row they're a spectator (cannot answer); past Qs aren't backfilled. |
 | Participant didn't tap "Enter trivia" before the round started | Spectator mode for the whole round. The leaderboard only includes those who answered, so they simply don't show up — no error, no "Anon" placeholder. |
 | Host forgot the participant — clicked Start without enrolling them | Same as above: they spectate. The host can hit Play again to reset, then bulk-enroll, then start fresh. |
+| Host wants to play their own quiz | The Create flow auto-enrolls the creator (`TriviaTab` calls `trivia.enter(...)` immediately after `createQuiz` succeeds). They appear in the lobby avatar stack and can tap the choice buttons during the round. |
+| Late-join into the calculating screen | The 10 s suspense timer is anchored on `calculating_started_at`; the new client computes its own remaining slice from that timestamp and shows the progress bar at the right starting position instead of restarting from 0. |
 | User taps a choice 1 ms before timer-zero, insert lands AFTER advance | Trigger detects `q.position ≠ current_question_index`, clamps `response_ms` to full window: 500 pts if correct, 0 if wrong. Never +1 000. |
 | User switches away to another tab and back during a Q | `QuestionScreen` re-mounts; `LaunchedEffect(quiz.id, index)` re-subscribes. The local timer reads from `currentQuestionStartedAt` so the visible countdown is correct. The user's already-recorded answer (if any) is restored from the `observeAnswers` flow keyed by `client_id`. |
 | Host navigates away after starting the round | The host's device fires advance only while `QuestionScreen` is mounted. If host backs out of the room, the round hangs at the current question until they return. (v2: move advance to a Postgres `pg_cron` or Edge Function for resilience.) |

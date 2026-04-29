@@ -1,6 +1,9 @@
 package com.xergioalex.kmppttdynamics.ui.room.tabs.trivia
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -11,6 +14,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -210,64 +218,102 @@ fun QuestionScreen(
         }
         Spacer(Modifier.height(16.dp))
 
-        // -- Prompt -----------------------------------------------------
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.secondaryContainer)
-                .padding(20.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                question.prompt,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                textAlign = TextAlign.Center,
-            )
-        }
-        Spacer(Modifier.height(20.dp))
+        // Slide the prompt + choices in from the right whenever the
+        // current question advances, and slide the previous frame out
+        // to the left. Compose `AnimatedContent` keys off `index` so
+        // the transition only fires on real Q→Q+1 transitions, not on
+        // every recomposition.
+        AnimatedContent(
+            targetState = index,
+            transitionSpec = {
+                (slideInHorizontally(
+                    initialOffsetX = { fullWidth -> fullWidth },
+                    animationSpec = tween(durationMillis = 320, easing = EaseOutCubic),
+                ) + fadeIn(animationSpec = tween(220))) togetherWith
+                    (slideOutHorizontally(
+                        targetOffsetX = { fullWidth -> -fullWidth / 3 },
+                        animationSpec = tween(durationMillis = 240),
+                    ) + fadeOut(animationSpec = tween(180)))
+            },
+            label = "trivia-question-transition",
+        ) { animatedIndex ->
+            // Look up the question for the animated index so the
+            // outgoing frame keeps rendering the previous question
+            // even after `questions.getOrNull(index)` has moved on.
+            val animatedQuestion = questions.getOrNull(animatedIndex) ?: question
+            val animatedChoices = (choicesByQuestion[animatedQuestion.id].orEmpty())
+                .sortedBy { it.position }
+                .take(4)
 
-        // -- 4 colored choice buttons -----------------------------------
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            choices.forEachIndexed { idx, choice ->
-                val isMyChoice = myAnswer?.choiceId == choice.id
-                val showCorrect = revealing && choice.id == correctChoiceId
-                val showIncorrectMine = revealing && isMyChoice && choice.id != correctChoiceId
-                ChoiceButton(
-                    index = idx,
-                    label = choice.label,
-                    // Spectators (not enrolled) can never tap; locked
-                    // also covers post-answer / post-timer states.
-                    locked = !canAnswer || myAnswer != null || timeUp,
-                    isMine = isMyChoice,
-                    revealCorrect = showCorrect,
-                    revealMineWrong = showIncorrectMine,
-                    onClick = {
-                        if (!canAnswer || myAnswer != null || timeUp) return@ChoiceButton
-                        // Fire-and-forget. The realtime feed echoes
-                        // our row back via `answers`; the
-                        // (question_id, client_id) UNIQUE makes any
-                        // accidental retry idempotent.
-                        answerScope.launch {
-                            runCatching {
-                                container.trivia.answer(
-                                    quizId = quiz.id,
-                                    questionId = question.id,
-                                    choiceId = choice.id,
-                                    participantId = me.id,
-                                    clientId = myClientId,
-                                )
-                            }.onFailure {
-                                println("TriviaQuestion.answer failed: ${it::class.simpleName}: ${it.message}")
-                            }
-                        }
-                    },
-                )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .padding(20.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        animatedQuestion.prompt,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    animatedChoices.forEachIndexed { idx, choice ->
+                        // For the *current* question we drive the
+                        // locked / reveal states off live data; for
+                        // an outgoing previous-question frame those
+                        // signals don't apply (the user already saw
+                        // the reveal before the slide started).
+                        val live = animatedIndex == index
+                        val isMyChoice = live && myAnswer?.choiceId == choice.id
+                        val showCorrect = live && revealing && choice.id == correctChoiceId
+                        val showIncorrectMine = live && revealing && isMyChoice &&
+                            choice.id != correctChoiceId
+                        ChoiceButton(
+                            index = idx,
+                            label = choice.label,
+                            // Spectators (not enrolled) and outgoing
+                            // previous-question frames can never tap;
+                            // also covers post-answer / post-timer
+                            // states on the live frame.
+                            locked = !live || !canAnswer || myAnswer != null || timeUp,
+                            isMine = isMyChoice,
+                            revealCorrect = showCorrect,
+                            revealMineWrong = showIncorrectMine,
+                            onClick = {
+                                if (!live || !canAnswer || myAnswer != null || timeUp) {
+                                    return@ChoiceButton
+                                }
+                                // Fire-and-forget. The realtime feed
+                                // echoes our row back via `answers`;
+                                // the (question_id, client_id) UNIQUE
+                                // makes any retry idempotent.
+                                answerScope.launch {
+                                    runCatching {
+                                        container.trivia.answer(
+                                            quizId = quiz.id,
+                                            questionId = question.id,
+                                            choiceId = choice.id,
+                                            participantId = me.id,
+                                            clientId = myClientId,
+                                        )
+                                    }.onFailure {
+                                        println("TriviaQuestion.answer failed: ${it::class.simpleName}: ${it.message}")
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
             }
         }
 
@@ -330,10 +376,11 @@ fun QuestionScreen(
 /**
  * Animated countdown arc. Color shifts from secondary → tertiary → error
  * as time runs out, and pulses in the last [TriviaTiming.LAST_SECONDS_PULSE]
- * seconds for urgency.
+ * seconds for urgency. Sized at 88 dp by default so the seconds digit
+ * is the most prominent thing on the screen during gameplay.
  */
 @Composable
-private fun CountdownRing(remainingMs: Long, totalMs: Long, sizeDp: Int = 72) {
+private fun CountdownRing(remainingMs: Long, totalMs: Long, sizeDp: Int = 88) {
     val progress = (remainingMs.toFloat() / totalMs.toFloat()).coerceIn(0f, 1f)
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
@@ -403,8 +450,8 @@ private fun CountdownRing(remainingMs: Long, totalMs: Long, sizeDp: Int = 72) {
         Text(
             text = stringResource(Res.string.trivia_seconds_remaining, secondsRemaining),
             color = onSurface,
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.ExtraBold,
+            style = MaterialTheme.typography.headlineSmall,
         )
     }
 }
@@ -412,8 +459,13 @@ private fun CountdownRing(remainingMs: Long, totalMs: Long, sizeDp: Int = 72) {
 /**
  * One of the four large Kahoot-style choice buttons. Stays interactive
  * until the user has answered or the timer expires; during the reveal
- * overlay a green ring marks the correct answer and the user's wrong
- * pick (if any) gets a dim red border.
+ * overlay a check mark on a white disk marks the correct answer, and
+ * the user's losing pick (if any) is dimmed.
+ *
+ * Press feedback: scales to 96 % while held so the tap feels tactile
+ * even before the realtime answer round-trips back. We drive this from
+ * the [interactionSource]'s pressed flag so the visual cue is perfectly
+ * synchronized with the click event.
  */
 @Composable
 private fun ChoiceButton(
@@ -433,12 +485,24 @@ private fun ChoiceButton(
         locked && !isMine -> baseBg.copy(alpha = 0.45f)
         else -> baseBg
     }
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed && !locked) 0.96f else 1f,
+        animationSpec = tween(durationMillis = 120, easing = EaseOutCubic),
+        label = "trivia-choice-press",
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .scale(pressScale)
             .clip(RoundedCornerShape(14.dp))
             .background(target)
-            .clickable(enabled = !locked) { onClick() }
+            .clickable(
+                enabled = !locked,
+                interactionSource = interactionSource,
+                indication = null,
+            ) { onClick() }
             .padding(horizontal = 16.dp, vertical = 18.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -495,26 +559,37 @@ private fun ChoiceButton(
 
 /**
  * Toast-like banner that flashes between questions. Tells the user how
- * many points they earned (or that they didn't answer in time).
+ * many points they earned (or that they didn't answer in time). The
+ * +N value rolls up from 0 over ~700 ms with an ease-out curve so the
+ * positive feedback feels earned, not abrupt.
  */
 @Composable
 private fun RevealBanner(points: Int, wasCorrect: Boolean, hadAnswer: Boolean) {
-    val (label, bg, fg) = when {
-        !hadAnswer -> Triple(
-            stringResource(Res.string.trivia_time_up),
-            MaterialTheme.colorScheme.surfaceVariant,
-            MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        wasCorrect -> Triple(
-            stringResource(Res.string.trivia_correct, points),
-            MaterialTheme.colorScheme.tertiaryContainer,
-            MaterialTheme.colorScheme.onTertiaryContainer,
-        )
-        else -> Triple(
-            stringResource(Res.string.trivia_wrong),
-            MaterialTheme.colorScheme.errorContainer,
-            MaterialTheme.colorScheme.onErrorContainer,
-        )
+    // Animate the score counter from 0 → points whenever the banner
+    // remounts (each new question gets a fresh keyed Animatable).
+    val animated = remember(points, wasCorrect, hadAnswer) { Animatable(0f) }
+    LaunchedEffect(points, wasCorrect, hadAnswer) {
+        if (wasCorrect && points > 0) {
+            animated.animateTo(
+                targetValue = points.toFloat(),
+                animationSpec = tween(durationMillis = 700, easing = EaseOutCubic),
+            )
+        } else {
+            animated.snapTo(0f)
+        }
+    }
+    val (bg, fg) = when {
+        !hadAnswer -> MaterialTheme.colorScheme.surfaceVariant to
+            MaterialTheme.colorScheme.onSurfaceVariant
+        wasCorrect -> MaterialTheme.colorScheme.tertiaryContainer to
+            MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.errorContainer to
+            MaterialTheme.colorScheme.onErrorContainer
+    }
+    val label = when {
+        !hadAnswer -> stringResource(Res.string.trivia_time_up)
+        wasCorrect -> stringResource(Res.string.trivia_correct, animated.value.toInt())
+        else -> stringResource(Res.string.trivia_wrong)
     }
     Box(
         modifier = Modifier
@@ -522,10 +597,15 @@ private fun RevealBanner(points: Int, wasCorrect: Boolean, hadAnswer: Boolean) {
             .padding(top = 12.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(bg)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = fg, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            color = fg,
+            fontWeight = FontWeight.ExtraBold,
+            style = MaterialTheme.typography.titleMedium,
+        )
     }
 }
 
