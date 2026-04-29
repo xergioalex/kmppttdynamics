@@ -47,6 +47,7 @@ import com.xergioalex.kmppttdynamics.AppContainer
 import com.xergioalex.kmppttdynamics.ui.components.AvatarImage
 import com.xergioalex.kmppttdynamics.ui.components.IconArrowBack
 import com.xergioalex.kmppttdynamics.ui.components.IconCheck
+import com.xergioalex.kmppttdynamics.ui.components.IconLock
 import com.xergioalex.kmppttdynamics.ui.components.PttHorizontalMark
 import com.xergioalex.kmppttdynamics.ui.components.TOTAL_AVATARS
 import kmppttdynamics.composeapp.generated.resources.Res
@@ -349,7 +350,7 @@ private fun AvatarTile(
                             .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("🔒", style = MaterialTheme.typography.titleLarge)
+                        IconLock(tint = Color.White, size = 22.dp)
                     }
                 }
             }

@@ -221,3 +221,34 @@ fun IconCircleOutline(
         drawCircle(tint, radius = w * 0.36f, style = stroke)
     }
 }
+
+@Composable
+fun IconLock(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 24.dp,
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = Stroke(width = w * 0.10f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        val bodyLeft = w * 0.25f
+        val bodyTop = h * 0.45f
+        val bodyRight = w * 0.75f
+        val bodyBottom = h * 0.85f
+        drawRect(tint, topLeft = Offset(bodyLeft, bodyTop), size = Size(bodyRight - bodyLeft, bodyBottom - bodyTop))
+        val arcLeft = w * 0.32f
+        val arcRight = w * 0.68f
+        val arcTop = h * 0.18f
+        val arcBottom = h * 0.50f
+        drawArc(
+            color = tint,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(arcLeft, arcTop),
+            size = Size(arcRight - arcLeft, arcBottom - arcTop),
+            style = stroke,
+        )
+    }
+}
