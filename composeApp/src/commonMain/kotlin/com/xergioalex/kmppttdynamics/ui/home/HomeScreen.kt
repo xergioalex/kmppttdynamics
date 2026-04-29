@@ -22,6 +22,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -45,6 +46,7 @@ import com.xergioalex.kmppttdynamics.AppContainer
 import com.xergioalex.kmppttdynamics.domain.Meetup
 import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.domain.MeetupStatus
+import com.xergioalex.kmppttdynamics.settings.ThemeMode
 import com.xergioalex.kmppttdynamics.ui.components.AvatarImage
 import com.xergioalex.kmppttdynamics.ui.components.PttHorizontalMark
 import kmppttdynamics.composeapp.generated.resources.Res
@@ -85,6 +87,7 @@ fun HomeScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     val event by vm.events.collectAsStateWithLifecycle()
     val profile by container.settings.profile.collectAsStateWithLifecycle()
+    val themeMode by container.settings.themeMode.collectAsStateWithLifecycle()
 
     LaunchedEffect(event) {
         when (val e = event) {
@@ -103,7 +106,14 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             PttHorizontalMark()
-            Button(onClick = onCreate) { Text(stringResource(Res.string.home_create)) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ThemeToggle(
+                    current = themeMode,
+                    onToggle = { next -> container.settings.setThemeMode(next) },
+                )
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = onCreate) { Text(stringResource(Res.string.home_create)) }
+            }
         }
         Spacer(Modifier.height(12.dp))
         profile?.let { p ->
@@ -372,6 +382,35 @@ private fun StatusBadge(status: MeetupStatus) {
             style = MaterialTheme.typography.labelSmall,
             color = fg,
             fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+/**
+ * Cycles SYSTEM → LIGHT → DARK → SYSTEM on each tap. Shows a
+ * single icon reflecting the *currently active* mode so the user
+ * always knows what they're using without needing a separate
+ * settings screen.
+ */
+@Composable
+private fun ThemeToggle(
+    current: ThemeMode,
+    onToggle: (ThemeMode) -> Unit,
+) {
+    val icon = when (current) {
+        ThemeMode.SYSTEM -> "◐"  // half-moon = follow OS
+        ThemeMode.LIGHT -> "☀"   // sun = forced light
+        ThemeMode.DARK -> "🌙"   // moon = forced dark
+    }
+    val next = when (current) {
+        ThemeMode.SYSTEM -> ThemeMode.LIGHT
+        ThemeMode.LIGHT -> ThemeMode.DARK
+        ThemeMode.DARK -> ThemeMode.SYSTEM
+    }
+    IconButton(onClick = { onToggle(next) }) {
+        Text(
+            text = icon,
+            style = MaterialTheme.typography.titleLarge,
         )
     }
 }
