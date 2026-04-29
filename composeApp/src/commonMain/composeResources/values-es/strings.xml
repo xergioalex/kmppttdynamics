@@ -164,6 +164,15 @@
     <string name="trivia_leaderboard_title">Tabla final</string>
     <string name="trivia_leaderboard_no_one">Nadie respondió. ¡Inténtenlo de nuevo!</string>
     <string name="trivia_leaderboard_correct">%1$d correctas</string>
+    <string name="trivia_leaderboard_you">Tú</string>
+    <string name="trivia_celebration_podium_title">¡Felicitaciones!</string>
+    <string name="trivia_celebration_podium_message_top">¡Llegaste a la cima del podio!</string>
+    <string name="trivia_celebration_podium_message">¡Alcanzaste el podio en el puesto #%1$d!</string>
+    <string name="trivia_celebration_below_title">¡Gran trabajo!</string>
+    <string name="trivia_celebration_below_message">Terminaste en el puesto #%1$d.</string>
+    <string name="trivia_celebration_spectator_title">Trivia terminada</string>
+    <string name="trivia_celebration_spectator_message">Mira quién subió al podio.</string>
+    <string name="trivia_celebration_continue">Ver tabla</string>
     <string name="trivia_play_again">Jugar de nuevo</string>
     <string name="trivia_new_round">Nueva trivia</string>
     <string name="trivia_archive">Archivar trivia</string>

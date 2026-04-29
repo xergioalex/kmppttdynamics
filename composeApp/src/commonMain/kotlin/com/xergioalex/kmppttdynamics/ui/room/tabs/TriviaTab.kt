@@ -19,6 +19,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -48,6 +49,8 @@ import kmppttdynamics.composeapp.generated.resources.trivia_default_title
 import kmppttdynamics.composeapp.generated.resources.trivia_empty_guest
 import kmppttdynamics.composeapp.generated.resources.trivia_empty_host
 import kmppttdynamics.composeapp.generated.resources.trivia_field_title
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -90,6 +93,18 @@ fun TriviaTab(
     var showCreate by remember { mutableStateOf(false) }
     var editingQuizId by remember { mutableStateOf<String?>(null) }
     var viewingLeaderboardQuizId by remember { mutableStateOf<String?>(null) }
+    // Whether the leaderboard takeover should run its pre-screen
+    // celebration. Only true when the screen was auto-opened right
+    // after CALCULATING -> FINISHED. The manual "View leaderboard"
+    // button on a finished card resets this to false so the user goes
+    // straight to the rankings.
+    var celebrateOnEntry by remember { mutableStateOf(false) }
+    // Per-quiz one-shot guard: once the auto-route fires for a given
+    // quiz id we never trigger it again, even if the user navigates
+    // back to the trivia list and that quiz is still recently
+    // finished. Keyed by quiz id so multiple finished trivias each
+    // get their own auto-route on first sighting.
+    val autoRoutedFinishedQuizzes = remember { mutableStateMapOf<String, Boolean>() }
     val isHost = me.role == ParticipantRole.HOST
     val myClientId = me.clientId ?: container.settings.installClientId()
 
@@ -97,6 +112,31 @@ fun TriviaTab(
         container.trivia.observeBoard(meetupId)
             .catch { board = TriviaBoard(emptyList(), emptyMap(), emptyMap()) }
             .collect { board = it }
+    }
+
+    // Auto-route every device into the LeaderboardScreen the moment a
+    // quiz transitions out of CALCULATING and into FINISHED. The
+    // 30-second freshness window means: if you join the room *after*
+    // a quiz finished, you don't get teleported into someone else's
+    // leaderboard reveal — you see the trivia list instead and can
+    // tap "View leaderboard" yourself. The autoRouted-set guard keeps
+    // a second router pass (e.g. when the FINISHED row gets re-emitted
+    // by an unrelated table change) from re-triggering the celebration.
+    LaunchedEffect(board?.quizzes) {
+        val quizzes = board?.quizzes ?: return@LaunchedEffect
+        // Only consider auto-routing when no manual route is currently
+        // taking over the screen. Otherwise we'd yank the host out of
+        // an editor or the user out of a leaderboard they manually
+        // opened.
+        if (editingQuizId != null || viewingLeaderboardQuizId != null) return@LaunchedEffect
+        val recentlyFinished = quizzes.firstOrNull { quiz ->
+            quiz.status == TriviaStatus.FINISHED &&
+                quiz.finishedAt?.let { (Clock.System.now() - it) < 30.seconds } == true &&
+                autoRoutedFinishedQuizzes[quiz.id] != true
+        } ?: return@LaunchedEffect
+        autoRoutedFinishedQuizzes[recentlyFinished.id] = true
+        celebrateOnEntry = true
+        viewingLeaderboardQuizId = recentlyFinished.id
     }
 
     fun runAction(label: String, block: suspend () -> Unit) {
@@ -229,21 +269,28 @@ fun TriviaTab(
                 leaderboardQuiz != null && leaderboardQuiz.status == TriviaStatus.FINISHED -> {
                     Column(modifier = Modifier.fillMaxSize()) {
                         TextButton(
-                            onClick = { viewingLeaderboardQuizId = null },
+                            onClick = {
+                                viewingLeaderboardQuizId = null
+                                celebrateOnEntry = false
+                            },
                         ) { Text(stringResource(Res.string.action_back)) }
                         LeaderboardScreen(
                             quiz = leaderboardQuiz,
                             container = container,
                             isHost = isHost,
                             isWorking = working != null,
+                            myClientId = myClientId,
+                            celebrate = celebrateOnEntry,
                             onPlayAgain = {
                                 runAction("reset") {
                                     container.trivia.reset(leaderboardQuiz.id)
                                 }
                                 viewingLeaderboardQuizId = null
+                                celebrateOnEntry = false
                             },
                             onNewRound = {
                                 viewingLeaderboardQuizId = null
+                                celebrateOnEntry = false
                                 showCreate = true
                             },
                         )
@@ -325,6 +372,10 @@ fun TriviaTab(
                                         }
                                     },
                                     onViewLeaderboard = {
+                                        // Manual nav skips the celebration:
+                                        // the user explicitly asked for the
+                                        // rankings, no need to greet them.
+                                        celebrateOnEntry = false
                                         viewingLeaderboardQuizId = quiz.id
                                     },
                                     onPlayAgain = {

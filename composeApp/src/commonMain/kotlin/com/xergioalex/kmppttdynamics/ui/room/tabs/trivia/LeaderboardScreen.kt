@@ -1,12 +1,19 @@
 package com.xergioalex.kmppttdynamics.ui.room.tabs.trivia
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,15 +48,25 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.xergioalex.kmppttdynamics.AppContainer
 import com.xergioalex.kmppttdynamics.trivia.TriviaLeaderboardEntry
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuiz
 import com.xergioalex.kmppttdynamics.ui.components.AvatarImage
 import kmppttdynamics.composeapp.generated.resources.Res
+import kmppttdynamics.composeapp.generated.resources.trivia_celebration_below_message
+import kmppttdynamics.composeapp.generated.resources.trivia_celebration_below_title
+import kmppttdynamics.composeapp.generated.resources.trivia_celebration_continue
+import kmppttdynamics.composeapp.generated.resources.trivia_celebration_podium_message
+import kmppttdynamics.composeapp.generated.resources.trivia_celebration_podium_message_top
+import kmppttdynamics.composeapp.generated.resources.trivia_celebration_podium_title
+import kmppttdynamics.composeapp.generated.resources.trivia_celebration_spectator_message
+import kmppttdynamics.composeapp.generated.resources.trivia_celebration_spectator_title
 import kmppttdynamics.composeapp.generated.resources.trivia_leaderboard_correct
 import kmppttdynamics.composeapp.generated.resources.trivia_leaderboard_no_one
 import kmppttdynamics.composeapp.generated.resources.trivia_leaderboard_title
+import kmppttdynamics.composeapp.generated.resources.trivia_leaderboard_you
 import kmppttdynamics.composeapp.generated.resources.trivia_new_round
 import kmppttdynamics.composeapp.generated.resources.trivia_play_again
 import kotlin.math.PI
@@ -63,11 +80,21 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * Final leaderboard screen.
  *
- * - Top 3 are revealed in podium form (3rd, then 2nd, then 1st) with a
- *   stagger delay so the host can sell the moment.
- * - The winner row gets a confetti overlay (custom particle field
- *   drawn behind the podium) for ~6 s.
- * - Below the podium: a regular ranked list of every other player.
+ * Two phases:
+ *
+ *  - **Celebration** (only when [celebrate] = true) — a personal "you
+ *    finished at #X!" takeover, sized differently for podium ranks vs
+ *    everyone-else, that auto-advances after [CELEBRATION_MS] ms or
+ *    when the user taps "View leaderboard". Spectators (clients
+ *    without a leaderboard entry) get a generic "trivia complete"
+ *    variant. Skipped entirely when the screen is opened by the
+ *    "View leaderboard" button on the trivia card list, so it only
+ *    fires once per round.
+ *  - **Leaderboard** — top 3 revealed podium-style (3rd → 2nd → 1st
+ *    with a stagger delay so the host can sell the moment), winner
+ *    gets a confetti overlay, ranks #4 onwards render in a scrollable
+ *    list below the podium. The current user's pedestal / row is
+ *    highlighted with a primary-colored ring + "You" chip.
  *
  * Sorting (`total_points DESC`, then `avg_response_ms ASC`, then
  * `display_name ASC`) is done server-side by
@@ -80,6 +107,8 @@ fun LeaderboardScreen(
     container: AppContainer,
     isHost: Boolean,
     isWorking: Boolean,
+    myClientId: String?,
+    celebrate: Boolean,
     onPlayAgain: () -> Unit,
     onNewRound: () -> Unit,
 ) {
@@ -90,6 +119,48 @@ fun LeaderboardScreen(
             .collect { entries = it }
     }
 
+    // Personal celebration phase: only when this screen was opened
+    // automatically right after CALCULATING -> FINISHED. Once the
+    // user is in the regular leaderboard (or arrived via the manual
+    // "View leaderboard" button) we never show it again.
+    var showCelebration by remember(quiz.id, celebrate) { mutableStateOf(celebrate) }
+
+    AnimatedContent(
+        targetState = showCelebration,
+        transitionSpec = {
+            (fadeIn(tween(400)) + scaleIn(tween(400), initialScale = 0.92f))
+                .togetherWith(fadeOut(tween(300)))
+        },
+        label = "trivia-leaderboard-phase",
+    ) { celebrating ->
+        if (celebrating) {
+            CelebrationOverlay(
+                entries = entries,
+                myClientId = myClientId,
+                onContinue = { showCelebration = false },
+            )
+        } else {
+            LeaderboardContent(
+                entries = entries,
+                myClientId = myClientId,
+                isHost = isHost,
+                isWorking = isWorking,
+                onPlayAgain = onPlayAgain,
+                onNewRound = onNewRound,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LeaderboardContent(
+    entries: List<TriviaLeaderboardEntry>,
+    myClientId: String?,
+    isHost: Boolean,
+    isWorking: Boolean,
+    onPlayAgain: () -> Unit,
+    onNewRound: () -> Unit,
+) {
     Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
         Text(
             stringResource(Res.string.trivia_leaderboard_title),
@@ -110,7 +181,7 @@ fun LeaderboardScreen(
                 }
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Podium(entries = entries.take(3))
+                    Podium(entries = entries.take(3), myClientId = myClientId)
                     Spacer(Modifier.height(16.dp))
                     if (entries.size > 3) {
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -118,6 +189,7 @@ fun LeaderboardScreen(
                                 RankRow(
                                     rank = entries.indexOf(entry) + 1,
                                     entry = entry,
+                                    isMe = entry.clientId == myClientId,
                                 )
                             }
                         }
@@ -146,14 +218,178 @@ fun LeaderboardScreen(
     }
 }
 
+/** How long the celebration overlay holds before auto-routing to the
+ *  leaderboard. Tap "View leaderboard" to skip. */
+private const val CELEBRATION_MS = 5_000L
+
+/**
+ * Personal pre-leaderboard takeover. Reads the current user's rank
+ * from [entries] and tailors the message:
+ *
+ *  - Rank 1: "You took the top of the podium!"
+ *  - Rank 2 / 3: "You reached the podium at #X!"
+ *  - Rank 4+: "You finished at #X."
+ *  - Spectator / no entry: generic "trivia complete".
+ *
+ * Auto-advances after [CELEBRATION_MS] ms; [onContinue] also fires on
+ * tap so impatient users aren't held hostage by the animation.
+ */
+@Composable
+private fun CelebrationOverlay(
+    entries: List<TriviaLeaderboardEntry>,
+    myClientId: String?,
+    onContinue: () -> Unit,
+) {
+    val myIndex = remember(entries, myClientId) {
+        if (myClientId == null) -1 else entries.indexOfFirst { it.clientId == myClientId }
+    }
+    val myEntry = entries.getOrNull(myIndex)
+    val myRank = if (myIndex >= 0) myIndex + 1 else null
+
+    LaunchedEffect(Unit) {
+        delay(CELEBRATION_MS)
+        onContinue()
+    }
+
+    val title: String
+    val message: String
+    when {
+        myRank == 1 -> {
+            title = stringResource(Res.string.trivia_celebration_podium_title)
+            message = stringResource(Res.string.trivia_celebration_podium_message_top)
+        }
+        myRank == 2 || myRank == 3 -> {
+            title = stringResource(Res.string.trivia_celebration_podium_title)
+            message = stringResource(Res.string.trivia_celebration_podium_message, myRank)
+        }
+        myRank != null -> {
+            title = stringResource(Res.string.trivia_celebration_below_title)
+            message = stringResource(Res.string.trivia_celebration_below_message, myRank)
+        }
+        else -> {
+            title = stringResource(Res.string.trivia_celebration_spectator_title)
+            message = stringResource(Res.string.trivia_celebration_spectator_message)
+        }
+    }
+
+    // Pulsating halo behind the avatar — same vibe as CalculatingScreen
+    // so the two screens feel like a continuous animation.
+    val transition = rememberInfiniteTransition(label = "trivia-celebration")
+    val haloPhase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1_600),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "trivia-celebration-halo",
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .clickable(onClick = onContinue),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Confetti only celebrates podium finishes; mid-pack ranks
+        // and spectators get a calmer screen.
+        if (myRank != null && myRank <= 3) ConfettiOverlay()
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                // Halo
+                Box(
+                    modifier = Modifier
+                        .size(168.dp)
+                        .graphicsLayer {
+                            scaleX = 0.85f + haloPhase * 0.25f
+                            scaleY = 0.85f + haloPhase * 0.25f
+                            alpha = 0.20f + haloPhase * 0.30f
+                        }
+                        .clip(CircleShape)
+                        .background(
+                            if (myRank != null && myRank <= 3) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.secondary
+                            },
+                        ),
+                )
+                if (myEntry?.avatarId != null) {
+                    AvatarImage(avatarId = myEntry.avatarId, size = 120.dp)
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                    )
+                }
+                if (myRank != null) {
+                    // Floating rank badge in the bottom-right of the avatar
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .graphicsLayer { translationX = 50.dp.toPx(); translationY = 40.dp.toPx() }
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .border(3.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "#$myRank",
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.ExtraBold,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                message,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            myEntry?.let {
+                Text(
+                    "${it.totalPoints} pts",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = onContinue) {
+                Text(stringResource(Res.string.trivia_celebration_continue))
+            }
+        }
+    }
+}
+
 /**
  * Podium for the top 3. Visual order is 2nd, 1st (taller), 3rd; reveal
  * order is 3rd → 2nd → 1st with 700 ms between each. Empty slots fill
  * with placeholder cards so the layout doesn't shift when the round
- * has fewer than 3 ranked players.
+ * has fewer than 3 ranked players. The pedestal whose entry matches
+ * [myClientId] gets a primary-colored ring + "You" chip so the user
+ * can spot themselves at a glance.
  */
 @Composable
-private fun Podium(entries: List<TriviaLeaderboardEntry>) {
+private fun Podium(entries: List<TriviaLeaderboardEntry>, myClientId: String?) {
     val first = entries.getOrNull(0)
     val second = entries.getOrNull(1)
     val third = entries.getOrNull(2)
@@ -188,6 +424,7 @@ private fun Podium(entries: List<TriviaLeaderboardEntry>) {
                 tone = MaterialTheme.colorScheme.secondary,
                 onTone = MaterialTheme.colorScheme.onSecondary,
                 appearance = secondReveal.value,
+                isMe = second != null && second.clientId == myClientId,
                 modifier = Modifier.weight(1f),
             )
             PodiumPedestal(
@@ -197,6 +434,7 @@ private fun Podium(entries: List<TriviaLeaderboardEntry>) {
                 tone = MaterialTheme.colorScheme.primary,
                 onTone = MaterialTheme.colorScheme.onPrimary,
                 appearance = firstReveal.value,
+                isMe = first != null && first.clientId == myClientId,
                 modifier = Modifier.weight(1f),
             )
             PodiumPedestal(
@@ -206,6 +444,7 @@ private fun Podium(entries: List<TriviaLeaderboardEntry>) {
                 tone = MaterialTheme.colorScheme.tertiary,
                 onTone = MaterialTheme.colorScheme.onTertiary,
                 appearance = thirdReveal.value,
+                isMe = third != null && third.clientId == myClientId,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -220,9 +459,11 @@ private fun PodiumPedestal(
     tone: Color,
     onTone: Color,
     appearance: Float,
+    isMe: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val safeAppearance = appearance.coerceIn(0f, 1f)
+    val highlightColor = MaterialTheme.colorScheme.primary
     Column(
         modifier = modifier.graphicsLayer {
             alpha = safeAppearance
@@ -232,11 +473,18 @@ private fun PodiumPedestal(
         },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        val avatarModifier = if (isMe) {
+            Modifier.border(width = 3.dp, color = highlightColor, shape = CircleShape)
+        } else {
+            Modifier
+        }
         if (entry?.avatarId != null) {
-            AvatarImage(avatarId = entry.avatarId, size = 64.dp)
+            Box(modifier = avatarModifier.clip(CircleShape)) {
+                AvatarImage(avatarId = entry.avatarId, size = 64.dp)
+            }
         } else {
             Box(
-                modifier = Modifier
+                modifier = avatarModifier
                     .size(64.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant),
@@ -250,6 +498,10 @@ private fun PodiumPedestal(
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
         )
+        if (isMe) {
+            YouChip()
+            Spacer(Modifier.height(2.dp))
+        }
         Text(
             "${entry?.totalPoints ?: 0} pts",
             style = MaterialTheme.typography.labelMedium,
@@ -275,9 +527,45 @@ private fun PodiumPedestal(
 }
 
 @Composable
-private fun RankRow(rank: Int, entry: TriviaLeaderboardEntry) {
+private fun YouChip() {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.primary)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    ) {
+        Text(
+            stringResource(Res.string.trivia_leaderboard_you),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimary,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+private fun RankRow(rank: Int, entry: TriviaLeaderboardEntry, isMe: Boolean) {
+    val cardColors = if (isMe) {
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+        )
+    } else {
+        CardDefaults.cardColors()
+    }
+    val rowModifier = if (isMe) {
+        Modifier
+            .fillMaxWidth()
+            .border(
+                width = 2.dp,
+                color = MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(12.dp),
+            )
+    } else {
+        Modifier.fillMaxWidth()
+    }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = rowModifier,
+        colors = cardColors,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(
@@ -286,16 +574,27 @@ private fun RankRow(rank: Int, entry: TriviaLeaderboardEntry) {
         ) {
             Text(
                 "#$rank",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (isMe) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(end = 12.dp),
             )
+            val avatarBorder = if (isMe) {
+                Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+            } else {
+                Modifier
+            }
             if (entry.avatarId != null) {
-                AvatarImage(avatarId = entry.avatarId, size = 36.dp)
+                Box(modifier = avatarBorder.clip(CircleShape)) {
+                    AvatarImage(avatarId = entry.avatarId, size = 36.dp)
+                }
             } else {
                 Box(
-                    modifier = Modifier
+                    modifier = avatarBorder
                         .size(36.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
@@ -303,15 +602,30 @@ private fun RankRow(rank: Int, entry: TriviaLeaderboardEntry) {
             }
             Spacer(Modifier.size(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    entry.displayName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        entry.displayName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isMe) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                    )
+                    if (isMe) {
+                        Spacer(Modifier.size(8.dp))
+                        YouChip()
+                    }
+                }
                 Text(
                     stringResource(Res.string.trivia_leaderboard_correct, entry.correctCount),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (isMe) {
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 )
             }
             Text(

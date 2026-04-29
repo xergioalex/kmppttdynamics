@@ -174,6 +174,15 @@
     <string name="trivia_leaderboard_title">Final leaderboard</string>
     <string name="trivia_leaderboard_no_one">No one answered. Try again!</string>
     <string name="trivia_leaderboard_correct">%1$d correct</string>
+    <string name="trivia_leaderboard_you">You</string>
+    <string name="trivia_celebration_podium_title">Congrats!</string>
+    <string name="trivia_celebration_podium_message_top">You took the top of the podium!</string>
+    <string name="trivia_celebration_podium_message">You reached the podium at #%1$d!</string>
+    <string name="trivia_celebration_below_title">Great job!</string>
+    <string name="trivia_celebration_below_message">You finished at #%1$d.</string>
+    <string name="trivia_celebration_spectator_title">Trivia complete</string>
+    <string name="trivia_celebration_spectator_message">See who took the podium.</string>
+    <string name="trivia_celebration_continue">View leaderboard</string>
     <string name="trivia_play_again">Play again</string>
     <string name="trivia_new_round">New trivia</string>
     <string name="trivia_archive">Archive trivia</string>
