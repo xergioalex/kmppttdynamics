@@ -168,6 +168,23 @@
     <string name="trivia_new_round">Nueva trivia</string>
     <string name="trivia_archive">Archivar trivia</string>
     <string name="trivia_action_failed">Acción fallida: %1$s</string>
+    <string name="trivia_status_draft">Borrador</string>
+    <string name="trivia_status_lobby">Lobby</string>
+    <string name="trivia_status_in_progress">En vivo</string>
+    <string name="trivia_status_calculating">Calculando</string>
+    <string name="trivia_status_finished">Terminada</string>
+    <string name="trivia_questions_count">%1$d preguntas</string>
+    <string name="trivia_no_questions_yet">Aún sin preguntas.</string>
+    <string name="trivia_enter">Unirme</string>
+    <string name="trivia_entered">Ya estás dentro</string>
+    <string name="trivia_enroll_all">Unir a todos</string>
+    <string name="trivia_entries_count">%1$d dentro</string>
+    <string name="trivia_no_entries">Aún nadie se ha unido.</string>
+    <string name="trivia_view_leaderboard">Ver tabla</string>
+    <string name="trivia_delete_quiz">Eliminar trivia</string>
+    <string name="trivia_edit_questions">Editar preguntas</string>
+    <string name="trivia_spectating">Estás de espectador — únete a la próxima ronda para jugar.</string>
+    <string name="trivia_host_configuring">El host está configurando la trivia…</string>
 
     <string name="raffles_create">Crear sorteo</string>
     <string name="raffles_empty">Aún no hay sorteos.</string>

@@ -145,6 +145,33 @@ data class TriviaAnswerDraft(
 )
 
 /**
+ * Per-quiz enrollment row. Mirrors `raffle_entries` exactly: a
+ * participant explicitly opts into a trivia (or the host bulk-enrolls
+ * the whole room) and that's the gate for whether the choice buttons
+ * are tappable when the round starts.
+ *
+ * `client_id` is denormalized from the linked
+ * `meetup_participants.client_id` so leaderboard / enrollment queries
+ * that join straight to `app_users` (avatar / display name) stay a
+ * single hop.
+ */
+@Serializable
+data class TriviaEntry(
+    val id: String,
+    @SerialName("quiz_id") val quizId: String,
+    @SerialName("participant_id") val participantId: String,
+    @SerialName("client_id") val clientId: String? = null,
+    @SerialName("created_at") val createdAt: Instant,
+)
+
+@Serializable
+data class TriviaEntryDraft(
+    @SerialName("quiz_id") val quizId: String,
+    @SerialName("participant_id") val participantId: String,
+    @SerialName("client_id") val clientId: String? = null,
+)
+
+/**
  * One row of the `trivia_leaderboard` view. The view does the heavy
  * aggregation server-side; the client just sorts the result by
  * `total_points DESC`, then `avg_response_ms ASC` for tie-breaking,

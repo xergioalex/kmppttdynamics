@@ -20,7 +20,8 @@ supabase/migrations/
 ├── 004_add_client_id.sql        # adds `meetup_participants.client_id` + unique index
 ├── 005_reset_data.sql           # wipe room data after the client_id refactor
 ├── 006_app_users.sql            # cross-meetup profile (display name + unique avatar)
-└── 007_trivia.sql               # Kahoot-style trivia: 4 tables + view + scoring trigger
+├── 007_trivia.sql               # Kahoot-style trivia: 4 tables + view + scoring trigger
+└── 008_trivia_entries.sql       # opt-in enrollment for trivia (mirrors raffle_entries)
 ```
 
 Run them all by setting up `.env` and executing:
@@ -232,6 +233,42 @@ Notable design choices:
 
 For the full reasoning, the per-screen UI breakdown, animation
 catalog, and edge cases, read [TRIVIA.md](TRIVIA.md).
+
+## 008 — trivia entries (opt-in enrollment)
+
+Adds `trivia_entries` so participants explicitly opt into a trivia
+before they can play, mirroring how `raffle_entries` gates raffle
+eligibility:
+
+```sql
+create table public.trivia_entries (
+    id              uuid primary key default gen_random_uuid(),
+    quiz_id         uuid not null references trivia_quizzes(id) on delete cascade,
+    participant_id  uuid not null references meetup_participants(id) on delete cascade,
+    client_id       text,                              -- denormalized for app_users joins
+    created_at      timestamptz not null default now(),
+    unique(quiz_id, participant_id)
+);
+```
+
+UX consequence on the client:
+
+- LOBBY card surfaces an **Enter trivia** button for each participant,
+  and an **Enroll everyone** button for the host (bulk-inserts every
+  meetup_participants row).
+- When the round starts, only enrolled clients can tap the four colored
+  choice buttons. Non-enrolled devices stay in spectator mode: the
+  countdown / prompt / answer-reveal animations are visible but the
+  buttons are disabled with a "you're spectating" hint.
+
+The `client_id` column is denormalized from
+`meetup_participants.client_id` so the spectator gate in
+`QuestionScreen` can answer "is this device enrolled?" with a single
+`entries.any { it.clientId == myClientId }` lookup, and so a future
+`trivia_eligibility` view that joins straight to `app_users` doesn't
+need an extra hop. The `(quiz_id, participant_id)` UNIQUE makes the
+upsert from "Enter" or "Enroll all" idempotent — a second tap is a
+silent no-op, never a 409.
 
 ## Adding a new migration
 

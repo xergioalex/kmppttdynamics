@@ -5,12 +5,15 @@
 > `ui/room/tabs/TriviaTab.kt`, or
 > `supabase/migrations/007_trivia.sql`.
 
-The host configures a quiz with N multiple-choice questions; the round
-starts on a button press; every connected device runs a synchronized
-countdown for each question; an answer-reveal flashes between
-questions; after the last question every device runs a 10 s suspense
-animation before the leaderboard is revealed (top 3 podium with
-confetti, then the rest).
+A meetup can host **many trivias coexisting** as cards in the tab.
+Each trivia is owned by the meetup host: they create a quiz, configure
+N multiple-choice questions, open the lobby for participants to join
+(or bulk-enroll the room with one tap), then start the round. Every
+connected device runs a synchronized countdown for each question;
+**only enrolled clients can submit answers** — non-enrolled devices
+stay in spectator mode for the duration. After the last question every
+device runs a 10 s suspense animation before the leaderboard is
+revealed (top 3 podium with confetti, then the rest).
 
 This document explains:
 
@@ -125,14 +128,17 @@ supabase.from(QUIZZES).update({
 
 ## Data model
 
-Five entities live in `supabase/migrations/007_trivia.sql`. All four tables are added to `supabase_realtime`; the view inherits SELECT via a separate `grant`.
+Six entities, split across two migrations (`007_trivia.sql` and
+`008_trivia_entries.sql`). Five tables are in `supabase_realtime`; the
+view inherits SELECT via a separate `grant`.
 
 | Table / View | Role | Key constraint |
 |---|---|---|
 | `trivia_quizzes` | Quiz metadata + lifecycle pointers | — |
 | `trivia_questions` | Per-question prompt + per-Q timer override | `UNIQUE (quiz_id, position)` |
 | `trivia_choices` | 4 colored options per question | `UNIQUE (question_id, position)` |
-| `trivia_answers` | One row per (device, question) | `UNIQUE (question_id, client_id)` ← idempotency |
+| `trivia_entries` | Opt-in roster (who can play) | `UNIQUE (quiz_id, participant_id)` ← idempotent enroll |
+| `trivia_answers` | One row per (device, question) | `UNIQUE (question_id, client_id)` ← idempotent retry |
 | `trivia_leaderboard` (view) | Aggregate `(quiz, client)` joined to `app_users` | — |
 
 ### `trivia_quizzes`
@@ -149,6 +155,31 @@ Five entities live in `supabase/migrations/007_trivia.sql`. All four tables are 
 | `calculating_started_at` | `timestamptz?` | Drives the 10 s suspense screen |
 | `created_by_client_id` | `text?` | Audit only — control is `role=host` |
 | `created_at` / `started_at` / `finished_at` | `timestamptz?` | |
+
+### `trivia_entries`
+
+```sql
+create table public.trivia_entries (
+    id              uuid primary key default gen_random_uuid(),
+    quiz_id         uuid not null references trivia_quizzes(id) on delete cascade,
+    participant_id  uuid not null references meetup_participants(id) on delete cascade,
+    client_id       text,                              -- denormalized for app_users joins
+    created_at      timestamptz not null default now(),
+    unique(quiz_id, participant_id)
+);
+```
+
+Mirrors `raffle_entries` exactly. Populated either by participants
+tapping **Enter trivia** on the LOBBY card, or by the host's
+**Enroll everyone** action which bulk-inserts every
+`meetup_participants` row. The `(quiz_id, participant_id)` UNIQUE
+makes a doubled tap or repeated host-enroll a silent no-op via
+`upsert(ignoreDuplicates = true)`.
+
+The `client_id` is denormalized from `meetup_participants.client_id`
+so [QuestionScreen](#in_progress-questionscreen)'s spectator gate is a
+single map lookup and a hypothetical "trivia_eligibility" view that
+joins to `app_users` stays one-hop.
 
 ### `trivia_answers`
 
@@ -225,28 +256,63 @@ Devices with clocks slightly off see a slightly-shorter or -longer countdown —
 
 The 15 s default per question gives plenty of headroom for typical NTP skew (±2 s). We deliberately did **not** add an NTP ping — it would be premature optimization for a community demo.
 
-## The five sub-screens
+## The screens
 
-Routed by `quiz.status` inside `TriviaTab.kt`:
+`TriviaTab.kt` is a list-of-quizzes router with two preemptive routes:
 
-| Status | File | Who sees what |
+| Precedence | Trigger | Screen |
 |---|---|---|
-| no quiz | `TriviaTab.kt` (inline `EmptyState`) | host: "Create trivia" button. Others: "Host hasn't set up yet" |
-| `draft` | `trivia/HostSetupScreen.kt` | host: editor cards + dialog. Others: empty hint |
-| `lobby` | `trivia/LobbyScreen.kt` | everyone: avatar grid; host: Start + Edit |
-| `in_progress` | `trivia/QuestionScreen.kt` | everyone: countdown ring + 4 buttons + reveal overlay |
-| `calculating` | `trivia/CalculatingScreen.kt` | everyone: 10 s halo + dots animation |
-| `finished` | `trivia/LeaderboardScreen.kt` | everyone: podium + list; host: Play again / New trivia |
+| 1 — Live takeover | Any quiz has `status` in `{IN_PROGRESS, CALCULATING}` (`board.live != null`) | Full-bleed `QuestionScreen` or `CalculatingScreen` for that quiz, on every device |
+| 2 — Local route: editing | Host tapped **Edit questions** on a draft card (`editingQuizId != null`) | Full-bleed `HostSetupScreen` |
+| 3 — Local route: leaderboard | Anyone tapped **View leaderboard** on a finished card (`viewingLeaderboardQuizId != null`) | Full-bleed `LeaderboardScreen` |
+| 4 — Default | Otherwise | List of `TriviaCard`s (one per quiz, newest first) + (host) **Create trivia** button on top |
 
-### `HostSetupScreen`
+In the list view, each card adapts its actions to the quiz's status:
+
+| Card status | Card body | Host actions | Participant actions |
+|---|---|---|---|
+| `draft` | "X questions configured" | Edit / Open lobby / Delete | "Host is setting up…" message |
+| `lobby` | Avatar stack of enrolled participants + "X in" count | Enroll all / Start / Edit / Delete | Enter trivia (or "You're in" chip) |
+| `finished` | "X questions configured" | Play again / Delete | (none) | View leaderboard |
+
+`IN_PROGRESS` and `CALCULATING` quizzes are never rendered as cards —
+they trigger the live takeover above.
+
+### `HostSetupScreen` (draft → editing route)
 
 Cards per question with the four colored choices preview, an "Edit" / "Delete" pair, and a sticky "Open lobby" button at the bottom. The Open-lobby button is **disabled** unless every question has a non-blank prompt, four non-blank labels, and exactly one correct answer marked. Validation lives in `HostSetupScreen.canOpenLobby` so the bottom-of-screen helper text explains why the button is grey.
 
 The editor opens in a Material `AlertDialog`, which keeps the question list scannable when the host is reordering 10+ questions. The dialog uses `mutableStateListOf<String>` for the four labels so a single recompose covers any field edit.
 
-### `LobbyScreen`
+**Empty state**: when the quiz has zero questions the screen shows the
+"No questions configured yet" message *and* a primary `Button` CTA
+that opens the editor. Without that explicit CTA the host could not
+add the first question — the previous version only rendered the
+"Add question" affordance inside the `LazyColumn`, which never
+mounted on an empty list.
 
-Title row centered + "5 questions · ~15 s each" subtitle + flex grid of online participants (using `FlowRow` so Wasm/JS layouts stay correct). Host bottom bar offers **Edit questions** (returns to draft) and **Start trivia**. The Start button is disabled if the quiz has zero questions — `lobby` is reachable from `draft` only when the host opened the lobby with a valid deck, but the guard catches the rare race where a question is deleted in another tab between "Open lobby" and "Start".
+The bottom bar's actions are:
+- **Back** — return to the trivia list without changing the quiz.
+- **Delete trivia** — destroys the quiz row (and its questions /
+  choices via CASCADE) and bounces back to the list.
+- **Open lobby** — flips the quiz to `LOBBY` and returns to the list,
+  where participants can now Enter and the host can Start.
+
+### Lobby (rendered as a card)
+
+The card body is the avatar stack of enrolled participants (using the
+`Modifier.offset` overlap pattern to dodge Compose's positive-padding
+guard). Action buttons:
+
+- (Participant) **Enter trivia** — upserts a `trivia_entries` row.
+  Once enrolled, the button collapses to a "You're in" chip.
+- (Host) **Enroll everyone** — bulk-inserts every
+  `meetup_participants` row. Idempotent via the same UNIQUE.
+- (Host) **Start trivia** — flips the quiz to `IN_PROGRESS` and
+  triggers the live takeover for every device in the room.
+- (Host) **Edit questions** — returns the quiz to `DRAFT` so the host
+  can keep tuning. Already-enrolled entries persist.
+- (Host) **Delete trivia** — destroys the quiz.
 
 ### `QuestionScreen`
 
@@ -269,6 +335,17 @@ The most animated screen. Layout:
 ```
 
 After timer-zero, an **answer reveal banner** flashes for `TriviaTiming.ANSWER_REVEAL_MS` (1.8 s). It tells the user "+850 pts" or "Better luck next round" or "Time's up!". The host's device then fires `onAdvance(index)`. WHERE-guarded UPDATE means even if every device tried, only one would land.
+
+**Spectator mode**: non-enrolled clients (no row in `trivia_entries`)
+see exactly the same screen — countdown ring, prompt, four colored
+buttons — but the buttons are disabled and the footer reads
+"You're spectating — join the next round to play". The
+`canAnswer: Boolean` parameter on `QuestionScreen` is the gate; the
+trivia tab computes it as
+`board.entriesByQuiz[live.id]?.any { it.clientId == myClientId }`.
+This way the screen is consistent across the room (no half of the
+audience seeing one UI and half seeing another), but the answer rows
+in `trivia_answers` only come from people who explicitly enrolled.
 
 ### `CalculatingScreen`
 
@@ -302,7 +379,9 @@ The 4-color palette is **intentionally hardcoded** in `TriviaPalette` — these 
 
 | Case | Behaviour |
 |---|---|
-| User joins meetup mid-round | Sees the current Q with a remaining countdown. Past Qs aren't backfilled; they score 0 by absence. |
+| User joins meetup mid-round | Sees the current Q with a remaining countdown. Without an enrollment row they're a spectator (cannot answer); past Qs aren't backfilled. |
+| Participant didn't tap "Enter trivia" before the round started | Spectator mode for the whole round. The leaderboard only includes those who answered, so they simply don't show up — no error, no "Anon" placeholder. |
+| Host forgot the participant — clicked Start without enrolling them | Same as above: they spectate. The host can hit Play again to reset, then bulk-enroll, then start fresh. |
 | User taps a choice 1 ms before timer-zero, insert lands AFTER advance | Trigger detects `q.position ≠ current_question_index`, clamps `response_ms` to full window: 500 pts if correct, 0 if wrong. Never +1 000. |
 | User switches away to another tab and back during a Q | `QuestionScreen` re-mounts; `LaunchedEffect(quiz.id, index)` re-subscribes. The local timer reads from `currentQuestionStartedAt` so the visible countdown is correct. The user's already-recorded answer (if any) is restored from the `observeAnswers` flow keyed by `client_id`. |
 | Host navigates away after starting the round | The host's device fires advance only while `QuestionScreen` is mounted. If host backs out of the room, the round hangs at the current question until they return. (v2: move advance to a Postgres `pg_cron` or Edge Function for resilience.) |
@@ -327,14 +406,15 @@ The 4-color palette is **intentionally hardcoded** in `TriviaPalette` — these 
 |---|---|
 | Data model + drafts | `composeApp/src/commonMain/kotlin/com/xergioalex/kmppttdynamics/trivia/TriviaModels.kt` |
 | Repository + realtime flows | `composeApp/.../trivia/TriviaRepository.kt` |
-| Status router | `composeApp/.../ui/room/tabs/TriviaTab.kt` |
-| Host setup editor | `composeApp/.../ui/room/tabs/trivia/HostSetupScreen.kt` |
-| Lobby grid | `composeApp/.../ui/room/tabs/trivia/LobbyScreen.kt` |
+| Tab router (list view + takeover precedence) | `composeApp/.../ui/room/tabs/TriviaTab.kt` |
+| List card (per-status actions) | `composeApp/.../ui/room/tabs/trivia/TriviaCard.kt` |
+| Host setup editor (full-screen route) | `composeApp/.../ui/room/tabs/trivia/HostSetupScreen.kt` |
 | Question + countdown ring + 4 buttons | `composeApp/.../ui/room/tabs/trivia/QuestionScreen.kt` |
 | Suspense screen | `composeApp/.../ui/room/tabs/trivia/CalculatingScreen.kt` |
 | Podium + confetti | `composeApp/.../ui/room/tabs/trivia/LeaderboardScreen.kt` |
 | Palette + animation timing | `composeApp/.../ui/room/tabs/trivia/TriviaTheme.kt` |
 | Schema + scoring trigger + view | `supabase/migrations/007_trivia.sql` |
+| Entries (opt-in roster) | `supabase/migrations/008_trivia_entries.sql` |
 | AppContainer wiring | `composeApp/.../AppContainer.kt` (search `trivia`) |
 | RoomTab enum + tab strip | `composeApp/.../ui/room/RoomScreen.kt` (search `RoomTab.TRIVIA`) |
 | i18n strings | `composeResources/values/strings.xml` + `values-es/strings.xml` (search `trivia_`) |

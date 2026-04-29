@@ -46,12 +46,13 @@ import com.xergioalex.kmppttdynamics.trivia.TriviaChoice
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuestion
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuiz
 import kmppttdynamics.composeapp.generated.resources.Res
+import kmppttdynamics.composeapp.generated.resources.action_back
 import kmppttdynamics.composeapp.generated.resources.action_cancel
 import kmppttdynamics.composeapp.generated.resources.trivia_add_question
-import kmppttdynamics.composeapp.generated.resources.trivia_back_to_setup
 import kmppttdynamics.composeapp.generated.resources.trivia_choice_correct
 import kmppttdynamics.composeapp.generated.resources.trivia_choice_label
 import kmppttdynamics.composeapp.generated.resources.trivia_delete_question
+import kmppttdynamics.composeapp.generated.resources.trivia_delete_quiz
 import kmppttdynamics.composeapp.generated.resources.trivia_edit_question
 import kmppttdynamics.composeapp.generated.resources.trivia_open_lobby
 import kmppttdynamics.composeapp.generated.resources.trivia_open_lobby_helper
@@ -89,7 +90,10 @@ fun HostSetupScreen(
     onUpdateQuestion: (questionId: String, prompt: String, seconds: Int, labels: List<String>, correctIndex: Int) -> Unit,
     onDeleteQuestion: (questionId: String) -> Unit,
     onOpenLobby: () -> Unit,
-    onDiscardQuiz: () -> Unit,
+    /** Bounce back to the trivia list without changing the quiz. */
+    onBack: () -> Unit,
+    /** Permanently destroy the quiz (and its questions / choices via CASCADE). */
+    onDeleteQuiz: () -> Unit,
 ) {
     var editorState by remember { mutableStateOf<EditorState?>(null) }
 
@@ -115,13 +119,37 @@ fun HostSetupScreen(
             HorizontalDivider()
         }
 
+        // Hoisted so the add-question CTA opens the editor from both
+        // the empty-state branch (primary Button) and the end-of-list
+        // branch (subtle OutlinedButton). Without this, the empty
+        // state had no entry point — only the LazyColumn rendered the
+        // button, so brand-new quizzes were unreachable.
+        val openNewQuestionEditor = {
+            editorState = EditorState(
+                existingId = null,
+                initialPrompt = "",
+                initialSeconds = quiz.defaultSecondsPerQuestion,
+                initialLabels = listOf("", "", "", ""),
+                initialCorrect = 0,
+            )
+        }
+
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (questions.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
                     Text(
                         stringResource(Res.string.trivia_setup_no_questions),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = openNewQuestionEditor,
+                        enabled = !isWorking,
+                    ) { Text(stringResource(Res.string.trivia_add_question)) }
                 }
             } else {
                 LazyColumn(
@@ -152,15 +180,7 @@ fun HostSetupScreen(
                     item {
                         Spacer(Modifier.height(4.dp))
                         OutlinedButton(
-                            onClick = {
-                                editorState = EditorState(
-                                    existingId = null,
-                                    initialPrompt = "",
-                                    initialSeconds = quiz.defaultSecondsPerQuestion,
-                                    initialLabels = listOf("", "", "", ""),
-                                    initialCorrect = 0,
-                                )
-                            },
+                            onClick = openNewQuestionEditor,
                             enabled = !isWorking,
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(Res.string.trivia_add_question)) }
@@ -185,9 +205,18 @@ fun HostSetupScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             OutlinedButton(
-                onClick = onDiscardQuiz,
+                onClick = onBack,
                 enabled = !isWorking,
-            ) { Text(stringResource(Res.string.action_cancel)) }
+            ) { Text(stringResource(Res.string.action_back)) }
+            TextButton(
+                onClick = onDeleteQuiz,
+                enabled = !isWorking,
+            ) {
+                Text(
+                    stringResource(Res.string.trivia_delete_quiz),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             Button(
                 onClick = onOpenLobby,
                 enabled = canOpenLobby,

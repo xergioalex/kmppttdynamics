@@ -236,6 +236,55 @@ class TriviaRepository(private val supabase: SupabaseClient) {
         supabase.from(CHOICES).insert(rows)
     }
 
+    // ---- Enrollment (opt-in roster, mirrors raffles) --------------------
+
+    /**
+     * Adds [participantId] to the entries of [quizId]. Idempotent via
+     * upsert on the `(quiz_id, participant_id)` UNIQUE — a second tap
+     * (or the host bulk-enrolling someone who's already in) is a
+     * silent no-op instead of a 409.
+     */
+    suspend fun enter(quizId: String, participantId: String, clientId: String?) {
+        supabase.from(ENTRIES).upsert(
+            TriviaEntryDraft(quizId, participantId, clientId),
+        ) {
+            onConflict = "quiz_id,participant_id"
+            ignoreDuplicates = true
+        }
+    }
+
+    /**
+     * Bulk-enrolls every participant of [meetupId] into [quizId].
+     * Convenience for the host's "Enroll everyone" button — the same
+     * path participants use when they tap "Enter trivia", just batched
+     * on the host's behalf so a busy meetup doesn't depend on every
+     * person noticing the button.
+     */
+    suspend fun enrollAllParticipants(quizId: String, meetupId: String) {
+        val rows = supabase.from("meetup_participants")
+            .select { filter { eq("meetup_id", meetupId) } }
+            .decodeList<EnrollableParticipant>()
+        if (rows.isEmpty()) return
+        supabase.from(ENTRIES).upsert(
+            rows.map { TriviaEntryDraft(quizId, it.id, it.clientId) },
+        ) {
+            onConflict = "quiz_id,participant_id"
+            ignoreDuplicates = true
+        }
+    }
+
+    /** Removes a participant from a quiz's enrollment. Used by the
+     *  "leave trivia" affordance (rare; participants usually just
+     *  stay enrolled even if they walk away). */
+    suspend fun leave(quizId: String, participantId: String) {
+        supabase.from(ENTRIES).delete {
+            filter {
+                eq("quiz_id", quizId)
+                eq("participant_id", participantId)
+            }
+        }
+    }
+
     // ---- Answer submission ----------------------------------------------
 
     /**
@@ -301,6 +350,11 @@ class TriviaRepository(private val supabase: SupabaseClient) {
             .select { filter { eq("quiz_id", quizId) } }
             .decodeList()
 
+    suspend fun listEntries(quizId: String): List<TriviaEntry> =
+        supabase.from(ENTRIES)
+            .select { filter { eq("quiz_id", quizId) } }
+            .decodeList()
+
     suspend fun fetchLeaderboard(quizId: String): List<TriviaLeaderboardEntry> =
         supabase.from(LEADERBOARD)
             .select { filter { eq("quiz_id", quizId) } }
@@ -334,12 +388,20 @@ class TriviaRepository(private val supabase: SupabaseClient) {
         val choiceChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = CHOICES
         }
+        // Entries fire frequently during the lobby phase (one row per
+        // participant per Enter / Enroll all). Subscribed here too so
+        // the lobby grid + spectator-gate stay live without a second
+        // observer feeding a parallel flow.
+        val entryChanges = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+            table = ENTRIES
+        }
         channel.subscribe()
         try {
             suspend fun snapshot(): TriviaBoard {
                 val quizzes = listQuizzes(meetupId)
                 val questionsByQuiz = mutableMapOf<String, List<TriviaQuestion>>()
                 val choicesByQuestion = mutableMapOf<String, List<TriviaChoice>>()
+                val entriesByQuiz = mutableMapOf<String, List<TriviaEntry>>()
                 for (q in quizzes) {
                     val qs = listQuestions(q.id)
                     questionsByQuiz[q.id] = qs
@@ -355,15 +417,18 @@ class TriviaRepository(private val supabase: SupabaseClient) {
                             choicesByQuestion[qid] = list
                         }
                     }
+                    entriesByQuiz[q.id] = listEntries(q.id)
                 }
                 return TriviaBoard(
                     quizzes = quizzes,
                     questionsByQuiz = questionsByQuiz,
                     choicesByQuestion = choicesByQuestion,
+                    entriesByQuiz = entriesByQuiz,
                 )
             }
             emit(snapshot())
-            merge(quizChanges, questionChanges, choiceChanges).collect { emit(snapshot()) }
+            merge(quizChanges, questionChanges, choiceChanges, entryChanges)
+                .collect { emit(snapshot()) }
         } finally {
             withContext(NonCancellable) { channel.unsubscribe() }
         }
@@ -401,30 +466,45 @@ class TriviaRepository(private val supabase: SupabaseClient) {
         }
     }
 
+    @kotlinx.serialization.Serializable
+    private data class EnrollableParticipant(
+        val id: String,
+        @kotlinx.serialization.SerialName("client_id") val clientId: String? = null,
+    )
+
     private companion object {
         const val QUIZZES = "trivia_quizzes"
         const val QUESTIONS = "trivia_questions"
         const val CHOICES = "trivia_choices"
         const val ANSWERS = "trivia_answers"
+        const val ENTRIES = "trivia_entries"
         const val LEADERBOARD = "trivia_leaderboard"
     }
 }
 
 /**
- * Snapshot of every quiz in a meetup, plus the questions and choices
- * needed to render the host setup / lobby / question screens.
+ * Snapshot of every quiz in a meetup, plus the questions, choices and
+ * enrollment rows needed to render the list and the per-screen UI.
+ *
+ * The [entriesByQuiz] map is the per-quiz roster used by the lobby
+ * grid (avatar stack of who's in) and by [QuestionScreen]'s
+ * "spectator vs answerer" gate.
  */
 data class TriviaBoard(
     val quizzes: List<TriviaQuiz>,
     val questionsByQuiz: Map<String, List<TriviaQuestion>>,
     val choicesByQuestion: Map<String, List<TriviaChoice>>,
+    val entriesByQuiz: Map<String, List<TriviaEntry>> = emptyMap(),
 ) {
     /**
-     * The quiz the UI should focus on. Returns the most recently
-     * created non-finished quiz; if every quiz is finished, returns
-     * the latest finished one (so the leaderboard stays visible
-     * after the round ends). `null` when the meetup has no quizzes.
+     * The currently-running quiz, if any. The room can have many
+     * quizzes coexisting (drafts, lobbies, finished history), but at
+     * most one is "live" (in_progress or calculating). When non-null,
+     * the trivia tab takes over the screen with the question /
+     * calculating UI; otherwise the tab renders the list of cards.
      */
-    val active: TriviaQuiz?
-        get() = quizzes.firstOrNull { it.status != TriviaStatus.FINISHED } ?: quizzes.firstOrNull()
+    val live: TriviaQuiz?
+        get() = quizzes.firstOrNull {
+            it.status == TriviaStatus.IN_PROGRESS || it.status == TriviaStatus.CALCULATING
+        }
 }

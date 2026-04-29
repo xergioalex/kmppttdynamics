@@ -59,6 +59,7 @@ import kmppttdynamics.composeapp.generated.resources.Res
 import kmppttdynamics.composeapp.generated.resources.trivia_answered_count
 import kmppttdynamics.composeapp.generated.resources.trivia_correct
 import kmppttdynamics.composeapp.generated.resources.trivia_locked_in
+import kmppttdynamics.composeapp.generated.resources.trivia_spectating
 import kmppttdynamics.composeapp.generated.resources.trivia_question_header
 import kmppttdynamics.composeapp.generated.resources.trivia_seconds_remaining
 import kmppttdynamics.composeapp.generated.resources.trivia_skip
@@ -110,6 +111,14 @@ fun QuestionScreen(
      * host doesn't see "3 / 12" when 5 of the 12 are offline.
      */
     onlineCount: Int,
+    /**
+     * True when this device is enrolled in the quiz (its row exists
+     * in `trivia_entries`). Determines whether the four colored choice
+     * buttons are tappable. Non-enrolled devices stay in spectator
+     * mode: countdown + prompt + reveal animations are visible but
+     * the buttons are disabled with a "you're spectating" hint.
+     */
+    canAnswer: Boolean,
     onAdvance: (expectedIndex: Int) -> Unit,
 ) {
     val index = quiz.currentQuestionIndex ?: 0
@@ -232,12 +241,14 @@ fun QuestionScreen(
                 ChoiceButton(
                     index = idx,
                     label = choice.label,
-                    locked = myAnswer != null || timeUp,
+                    // Spectators (not enrolled) can never tap; locked
+                    // also covers post-answer / post-timer states.
+                    locked = !canAnswer || myAnswer != null || timeUp,
                     isMine = isMyChoice,
                     revealCorrect = showCorrect,
                     revealMineWrong = showIncorrectMine,
                     onClick = {
-                        if (myAnswer != null || timeUp) return@ChoiceButton
+                        if (!canAnswer || myAnswer != null || timeUp) return@ChoiceButton
                         // Fire-and-forget. The realtime feed echoes
                         // our row back via `answers`; the
                         // (question_id, client_id) UNIQUE makes any
@@ -262,12 +273,18 @@ fun QuestionScreen(
 
         Spacer(Modifier.weight(1f))
 
-        // -- Footer: locked-in hint + host counters ---------------------
+        // -- Footer: locked-in / spectator hint + host counters ---------
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (myAnswer != null && !revealing) {
+            if (!canAnswer) {
+                Text(
+                    stringResource(Res.string.trivia_spectating),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (myAnswer != null && !revealing) {
                 Text(
                     stringResource(Res.string.trivia_locked_in),
                     style = MaterialTheme.typography.bodyMedium,

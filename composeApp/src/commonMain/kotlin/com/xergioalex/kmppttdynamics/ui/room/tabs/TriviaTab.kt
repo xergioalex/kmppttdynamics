@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -35,9 +37,10 @@ import com.xergioalex.kmppttdynamics.trivia.TriviaStatus
 import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.CalculatingScreen
 import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.HostSetupScreen
 import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.LeaderboardScreen
-import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.LobbyScreen
 import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.QuestionScreen
+import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.TriviaCard
 import kmppttdynamics.composeapp.generated.resources.Res
+import kmppttdynamics.composeapp.generated.resources.action_back
 import kmppttdynamics.composeapp.generated.resources.action_cancel
 import kmppttdynamics.composeapp.generated.resources.trivia_action_failed
 import kmppttdynamics.composeapp.generated.resources.trivia_create
@@ -52,15 +55,24 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * Kahoot-style trivia tab.
  *
- * Loads the latest active quiz for the meetup via
- * [com.xergioalex.kmppttdynamics.trivia.TriviaRepository.observeBoard] and routes to one of five
- * sub-screens based on `quiz.status`. The room screen (header / tab
- * strip / leave button) is rendered by `RoomScreen` — this composable
- * only owns the body of the trivia tab.
+ * Multiple quizzes can coexist for one meetup; the tab is therefore
+ * structured around a **list of [TriviaCard]s** (one per quiz, sorted
+ * by `created_at DESC`). Two routes pull a single quiz out of the
+ * list to take over the screen:
  *
- * The host's device drives every state transition; non-host devices
- * are pure observers. WHERE-guarded UPDATEs in the repository keep
- * concurrent host clicks idempotent.
+ *  - **Live takeover** — when any quiz is `IN_PROGRESS` or
+ *    `CALCULATING`, the room is in active gameplay; the in-progress /
+ *    suspense screens render full-bleed for *every* connected device,
+ *    enrolled or not.
+ *  - **Local routes** (host only):
+ *      - `editingQuizId != null` → [HostSetupScreen] for that quiz.
+ *      - `viewingLeaderboardQuizId != null` → [LeaderboardScreen] for
+ *        a finished quiz (the podium needs the full screen).
+ *
+ * Routing precedence: live takeover > local route > list view. So if
+ * the host is editing a draft and a *different* quiz transitions to
+ * in_progress (because, say, a co-host hit Start), the live takeover
+ * wins and the host returns to the editor when the round ends.
  */
 @Composable
 fun TriviaTab(
@@ -76,6 +88,8 @@ fun TriviaTab(
     var actionError by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf<String?>(null) }
     var showCreate by remember { mutableStateOf(false) }
+    var editingQuizId by remember { mutableStateOf<String?>(null) }
+    var viewingLeaderboardQuizId by remember { mutableStateOf<String?>(null) }
     val isHost = me.role == ParticipantRole.HOST
     val myClientId = me.clientId ?: container.settings.installClientId()
 
@@ -85,12 +99,6 @@ fun TriviaTab(
             .collect { board = it }
     }
 
-    /**
-     * Run a suspending host action exactly once at a time. While
-     * [working] is non-null every action button greys out — this
-     * coroutine is the safety net that catches race conditions
-     * (rapid double-tap, network retry, etc.) and surfaces failures.
-     */
     fun runAction(label: String, block: suspend () -> Unit) {
         if (working != null) return
         actionError = null
@@ -107,7 +115,13 @@ fun TriviaTab(
         }
     }
 
-    val quiz: TriviaQuiz? = board?.active
+    val live = board?.live
+    // Resolve local-route targets against the live board so a stale
+    // editingQuizId pointing at a deleted quiz doesn't strand the UI.
+    val editingQuiz = editingQuizId?.let { id -> board?.quizzes?.firstOrNull { it.id == id } }
+    val leaderboardQuiz = viewingLeaderboardQuizId?.let { id ->
+        board?.quizzes?.firstOrNull { it.id == id }
+    }
 
     Column(modifier = modifier.fillMaxSize().padding(12.dp)) {
         actionError?.let { msg ->
@@ -125,125 +139,202 @@ fun TriviaTab(
                     contentAlignment = Alignment.Center,
                 ) { Text("…", color = MaterialTheme.colorScheme.onSurfaceVariant) }
 
-                quiz == null -> EmptyState(
-                    isHost = isHost,
-                    onCreate = { showCreate = true },
-                )
+                // ---- 1) Live takeover -------------------------------
+                live != null -> when (live.status) {
+                    TriviaStatus.IN_PROGRESS -> QuestionScreen(
+                        quiz = live,
+                        questions = board?.questionsByQuiz?.get(live.id).orEmpty(),
+                        choicesByQuestion = board?.choicesByQuestion ?: emptyMap(),
+                        container = container,
+                        me = me,
+                        myClientId = myClientId,
+                        isHost = isHost,
+                        isWorking = working != null,
+                        onlineCount = participantsById.values.count { it.isOnline },
+                        canAnswer = board?.entriesByQuiz?.get(live.id)
+                            ?.any { it.clientId == myClientId } == true,
+                        onAdvance = { expectedIndex ->
+                            runAction("advance") {
+                                container.trivia.advanceQuestion(
+                                    quizId = live.id,
+                                    expectedIndex = expectedIndex,
+                                    totalQuestions = board?.questionsByQuiz
+                                        ?.get(live.id)?.size ?: 0,
+                                )
+                            }
+                        },
+                    )
+                    TriviaStatus.CALCULATING -> CalculatingScreen(
+                        quiz = live,
+                        onFinish = {
+                            runAction("finish-calculating") {
+                                container.trivia.finishCalculating(live.id)
+                            }
+                        },
+                    )
+                    else -> Unit
+                }
 
-                else -> {
-                    val questions = board?.questionsByQuiz?.get(quiz.id).orEmpty()
-                    val choices = board?.choicesByQuestion ?: emptyMap()
-                    when (quiz.status) {
-                        TriviaStatus.DRAFT -> if (isHost) {
-                            HostSetupScreen(
-                                quiz = quiz,
-                                questions = questions,
-                                choicesByQuestion = choices,
-                                isWorking = working != null,
-                                onAddQuestion = { prompt, secs, labels, correctIdx ->
-                                    runAction("add-question") {
-                                        val pos = questions.size
-                                        val q = container.trivia.addQuestion(
-                                            quizId = quiz.id,
-                                            position = pos,
-                                            prompt = prompt,
-                                            secondsToAnswer = secs,
-                                        )
-                                        container.trivia.replaceChoices(q.id, labels, correctIdx)
-                                    }
-                                },
-                                onUpdateQuestion = { questionId, prompt, secs, labels, correctIdx ->
-                                    runAction("update-question") {
-                                        container.trivia.updateQuestion(questionId, prompt, secs)
-                                        container.trivia.replaceChoices(questionId, labels, correctIdx)
-                                    }
-                                },
-                                onDeleteQuestion = { questionId ->
-                                    runAction("delete-question") {
-                                        container.trivia.deleteQuestion(questionId)
-                                    }
-                                },
-                                onOpenLobby = {
-                                    runAction("open-lobby") {
-                                        container.trivia.openLobby(quiz.id)
-                                    }
-                                },
-                                onDiscardQuiz = {
-                                    runAction("discard-quiz") {
-                                        container.trivia.deleteQuiz(quiz.id)
-                                    }
-                                },
-                            )
-                        } else {
-                            CenteredHint(stringResource(Res.string.trivia_empty_guest))
-                        }
+                // ---- 2) Local route: editing a draft ---------------
+                editingQuiz != null && editingQuiz.status == TriviaStatus.DRAFT && isHost -> {
+                    HostSetupScreen(
+                        quiz = editingQuiz,
+                        questions = board?.questionsByQuiz?.get(editingQuiz.id).orEmpty(),
+                        choicesByQuestion = board?.choicesByQuestion ?: emptyMap(),
+                        isWorking = working != null,
+                        onAddQuestion = { prompt, secs, labels, correctIdx ->
+                            runAction("add-question") {
+                                val pos = board?.questionsByQuiz
+                                    ?.get(editingQuiz.id)?.size ?: 0
+                                val q = container.trivia.addQuestion(
+                                    quizId = editingQuiz.id,
+                                    position = pos,
+                                    prompt = prompt,
+                                    secondsToAnswer = secs,
+                                )
+                                container.trivia.replaceChoices(q.id, labels, correctIdx)
+                            }
+                        },
+                        onUpdateQuestion = { questionId, prompt, secs, labels, correctIdx ->
+                            runAction("update-question") {
+                                container.trivia.updateQuestion(questionId, prompt, secs)
+                                container.trivia.replaceChoices(questionId, labels, correctIdx)
+                            }
+                        },
+                        onDeleteQuestion = { questionId ->
+                            runAction("delete-question") {
+                                container.trivia.deleteQuestion(questionId)
+                            }
+                        },
+                        onOpenLobby = {
+                            runAction("open-lobby") {
+                                container.trivia.openLobby(editingQuiz.id)
+                            }
+                            // Bounce back to the list — the LOBBY card
+                            // will surface the participant join + start
+                            // controls.
+                            editingQuizId = null
+                        },
+                        onBack = { editingQuizId = null },
+                        onDeleteQuiz = {
+                            runAction("delete-quiz") {
+                                container.trivia.deleteQuiz(editingQuiz.id)
+                            }
+                            editingQuizId = null
+                        },
+                    )
+                }
 
-                        TriviaStatus.LOBBY -> LobbyScreen(
-                            quiz = quiz,
-                            questions = questions,
-                            participantsById = participantsById,
-                            usersByClientId = usersByClientId,
-                            isHost = isHost,
-                            isWorking = working != null,
-                            onStart = {
-                                runAction("start") { container.trivia.start(quiz.id) }
-                            },
-                            onBackToSetup = {
-                                runAction("back-to-setup") {
-                                    container.trivia.returnToDraft(quiz.id)
-                                }
-                            },
-                        )
-
-                        TriviaStatus.IN_PROGRESS -> QuestionScreen(
-                            quiz = quiz,
-                            questions = questions,
-                            choicesByQuestion = choices,
-                            container = container,
-                            me = me,
-                            myClientId = myClientId,
-                            isHost = isHost,
-                            isWorking = working != null,
-                            onlineCount = participantsById.values.count { it.isOnline },
-                            onAdvance = { expectedIndex ->
-                                runAction("advance") {
-                                    container.trivia.advanceQuestion(
-                                        quizId = quiz.id,
-                                        expectedIndex = expectedIndex,
-                                        totalQuestions = questions.size,
-                                    )
-                                }
-                            },
-                        )
-
-                        TriviaStatus.CALCULATING -> CalculatingScreen(
-                            quiz = quiz,
-                            onFinish = {
-                                runAction("finish-calculating") {
-                                    container.trivia.finishCalculating(quiz.id)
-                                }
-                            },
-                        )
-
-                        TriviaStatus.FINISHED -> LeaderboardScreen(
-                            quiz = quiz,
+                // ---- 3) Local route: viewing a finished leaderboard
+                leaderboardQuiz != null && leaderboardQuiz.status == TriviaStatus.FINISHED -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        TextButton(
+                            onClick = { viewingLeaderboardQuizId = null },
+                        ) { Text(stringResource(Res.string.action_back)) }
+                        LeaderboardScreen(
+                            quiz = leaderboardQuiz,
                             container = container,
                             isHost = isHost,
                             isWorking = working != null,
                             onPlayAgain = {
-                                runAction("reset") { container.trivia.reset(quiz.id) }
+                                runAction("reset") {
+                                    container.trivia.reset(leaderboardQuiz.id)
+                                }
+                                viewingLeaderboardQuizId = null
                             },
                             onNewRound = {
-                                runAction("new-round") {
-                                    val title = "Round ${board?.quizzes?.size?.plus(1) ?: 1}"
-                                    container.trivia.createQuiz(
-                                        meetupId = meetupId,
-                                        title = title,
-                                        createdByClientId = myClientId,
-                                    )
-                                }
+                                viewingLeaderboardQuizId = null
+                                showCreate = true
                             },
                         )
+                    }
+                }
+
+                // ---- 4) Default: list view of all quizzes -----------
+                else -> {
+                    val quizzes = board?.quizzes.orEmpty()
+                    if (quizzes.isEmpty()) {
+                        EmptyState(
+                            isHost = isHost,
+                            onCreate = { showCreate = true },
+                        )
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            if (isHost) {
+                                item {
+                                    Button(
+                                        onClick = { showCreate = true },
+                                        enabled = working == null,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) { Text(stringResource(Res.string.trivia_create)) }
+                                }
+                            }
+                            items(quizzes, key = { it.id }) { quiz ->
+                                TriviaCard(
+                                    quiz = quiz,
+                                    questions = board?.questionsByQuiz
+                                        ?.get(quiz.id).orEmpty(),
+                                    choicesByQuestion = board?.choicesByQuestion
+                                        ?: emptyMap(),
+                                    entries = board?.entriesByQuiz
+                                        ?.get(quiz.id).orEmpty(),
+                                    me = me,
+                                    myClientId = myClientId,
+                                    isHost = isHost,
+                                    isWorking = working != null,
+                                    participantsById = participantsById,
+                                    usersByClientId = usersByClientId,
+                                    onEdit = { editingQuizId = quiz.id },
+                                    onDelete = {
+                                        runAction("delete-quiz") {
+                                            container.trivia.deleteQuiz(quiz.id)
+                                        }
+                                    },
+                                    onOpenLobby = {
+                                        runAction("open-lobby") {
+                                            container.trivia.openLobby(quiz.id)
+                                        }
+                                    },
+                                    onReturnToDraft = {
+                                        runAction("return-to-draft") {
+                                            container.trivia.returnToDraft(quiz.id)
+                                        }
+                                    },
+                                    onEnter = {
+                                        runAction("enter") {
+                                            container.trivia.enter(
+                                                quizId = quiz.id,
+                                                participantId = me.id,
+                                                clientId = myClientId,
+                                            )
+                                        }
+                                    },
+                                    onEnrollAll = {
+                                        runAction("enroll-all") {
+                                            container.trivia.enrollAllParticipants(
+                                                quizId = quiz.id,
+                                                meetupId = meetupId,
+                                            )
+                                        }
+                                    },
+                                    onStart = {
+                                        runAction("start") {
+                                            container.trivia.start(quiz.id)
+                                        }
+                                    },
+                                    onViewLeaderboard = {
+                                        viewingLeaderboardQuizId = quiz.id
+                                    },
+                                    onPlayAgain = {
+                                        runAction("reset") {
+                                            container.trivia.reset(quiz.id)
+                                        }
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -257,11 +348,15 @@ fun TriviaTab(
             onCreate = { title ->
                 showCreate = false
                 runAction("create") {
-                    container.trivia.createQuiz(
+                    val created = container.trivia.createQuiz(
                         meetupId = meetupId,
                         title = title,
                         createdByClientId = myClientId,
                     )
+                    // Auto-route the host into the editor for the
+                    // freshly-created quiz so the next thing they see
+                    // is the empty-state "Add question" CTA.
+                    editingQuizId = created.id
                 }
             },
         )
@@ -290,13 +385,6 @@ private fun EmptyState(isHost: Boolean, onCreate: () -> Unit) {
                 Text(stringResource(Res.string.trivia_create))
             }
         }
-    }
-}
-
-@Composable
-private fun CenteredHint(text: String) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

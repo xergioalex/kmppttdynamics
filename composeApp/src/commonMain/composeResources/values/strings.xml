@@ -178,6 +178,23 @@
     <string name="trivia_new_round">New trivia</string>
     <string name="trivia_archive">Archive trivia</string>
     <string name="trivia_action_failed">Action failed: %1$s</string>
+    <string name="trivia_status_draft">Draft</string>
+    <string name="trivia_status_lobby">Lobby</string>
+    <string name="trivia_status_in_progress">Live</string>
+    <string name="trivia_status_calculating">Calculating</string>
+    <string name="trivia_status_finished">Finished</string>
+    <string name="trivia_questions_count">%1$d questions</string>
+    <string name="trivia_no_questions_yet">No questions configured yet.</string>
+    <string name="trivia_enter">Enter trivia</string>
+    <string name="trivia_entered">You\'re in</string>
+    <string name="trivia_enroll_all">Enroll everyone</string>
+    <string name="trivia_entries_count">%1$d in</string>
+    <string name="trivia_no_entries">No one has joined yet.</string>
+    <string name="trivia_view_leaderboard">View leaderboard</string>
+    <string name="trivia_delete_quiz">Delete trivia</string>
+    <string name="trivia_edit_questions">Edit questions</string>
+    <string name="trivia_spectating">You\'re spectating — join the next round to play.</string>
+    <string name="trivia_host_configuring">Host is setting up the trivia…</string>
 
     <!-- Raffles (M5) -->
     <string name="raffles_create">Create raffle</string>
