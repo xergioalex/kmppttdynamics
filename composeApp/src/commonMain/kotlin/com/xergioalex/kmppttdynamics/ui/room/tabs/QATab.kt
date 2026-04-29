@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.xergioalex.kmppttdynamics.ui.components.IconThumbUp
 import com.xergioalex.kmppttdynamics.AppContainer
 import com.xergioalex.kmppttdynamics.domain.AppUser
 import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
@@ -244,11 +245,10 @@ private fun VotePill(
             .background(bg)
             .let { if (enabled) it.clickable(onClick = onClick) else it },
     ) {
-        Text(
-            if (voted) "▲" else "△",
-            style = MaterialTheme.typography.titleMedium,
-            color = fg,
-            fontWeight = FontWeight.Bold,
+        IconThumbUp(
+            tint = fg,
+            filled = voted,
+            size = 20.dp,
         )
         Text(
             stringResource(Res.string.qa_upvotes, count),

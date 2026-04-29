@@ -45,6 +45,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.xergioalex.kmppttdynamics.AppContainer
 import com.xergioalex.kmppttdynamics.ui.components.AvatarImage
+import com.xergioalex.kmppttdynamics.ui.components.IconArrowBack
+import com.xergioalex.kmppttdynamics.ui.components.IconCheck
 import com.xergioalex.kmppttdynamics.ui.components.PttHorizontalMark
 import com.xergioalex.kmppttdynamics.ui.components.TOTAL_AVATARS
 import kmppttdynamics.composeapp.generated.resources.Res
@@ -220,7 +222,7 @@ private fun AvatarPickerView(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onClose) {
-                Text("‹", style = MaterialTheme.typography.headlineSmall)
+                IconArrowBack(tint = MaterialTheme.colorScheme.onSurface)
             }
             // Selected-avatar preview: ringed in primary, same look as
             // a selected tile so the visual language is consistent.
@@ -364,11 +366,9 @@ private fun AvatarTile(
                         .border(2.dp, surface, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        "✓",
-                        color = onPrimary,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                    IconCheck(
+                        tint = onPrimary,
+                        size = 16.dp,
                     )
                 }
             }

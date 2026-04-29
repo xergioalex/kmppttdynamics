@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.xergioalex.kmppttdynamics.ui.components.IconCheck
 import com.xergioalex.kmppttdynamics.trivia.TriviaChoice
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuestion
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuestionType
@@ -409,9 +410,9 @@ private fun TriviaQuestionType.paletteIndex(): Int = when (this) {
 }
 
 private val TYPE_GLYPHS: Map<TriviaQuestionType, String> = mapOf(
-    TriviaQuestionType.SINGLE to "●",
+    TriviaQuestionType.SINGLE to "1",
     TriviaQuestionType.BOOLEAN to "T/F",
-    TriviaQuestionType.MULTIPLE to "☑",
+    TriviaQuestionType.MULTIPLE to "N",
     TriviaQuestionType.NUMERIC to "12",
 )
 
@@ -524,7 +525,7 @@ private fun NumericPreview(question: TriviaQuestion) {
         if (question.numericTolerance > 0) {
             Spacer(Modifier.size(8.dp))
             Text(
-                "± ${formatNumeric(question.numericTolerance)}",
+                "+/- ${formatNumeric(question.numericTolerance)}",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -571,12 +572,7 @@ private fun ChoiceChip(index: Int, label: String, isCorrect: Boolean) {
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            TriviaPalette.symbols[index],
-            color = fg,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(end = 8.dp),
-        )
+        TriviaShapeIcon(index = index, color = fg, size = 14.dp, modifier = Modifier.padding(end = 8.dp))
         Text(
             label,
             color = fg,
@@ -592,7 +588,7 @@ private fun ChoiceChip(index: Int, label: String, isCorrect: Boolean) {
                     .background(Color.White),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("\u2713", color = bg, fontWeight = FontWeight.Bold)
+                IconCheck(tint = bg, size = 14.dp)
             }
         }
     }
@@ -966,12 +962,7 @@ private fun ChoiceColorDot(index: Int) {
             .background(TriviaPalette.backgrounds[index]),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            TriviaPalette.symbols[index],
-            color = TriviaPalette.foregrounds[index],
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.labelSmall,
-        )
+        TriviaShapeIcon(index = index, color = TriviaPalette.foregrounds[index], size = 12.dp)
     }
 }
 

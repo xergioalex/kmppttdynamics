@@ -197,7 +197,7 @@ fun TriviaCard(
                 // but if they do we render a minimal "live" hint
                 // instead of crashing.
                 else -> Text(
-                    "…",
+                    "...",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),

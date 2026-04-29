@@ -64,6 +64,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.xergioalex.kmppttdynamics.ui.components.IconCheck
+import com.xergioalex.kmppttdynamics.ui.components.IconCircleOutline
 import com.xergioalex.kmppttdynamics.AppContainer
 import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.trivia.TriviaAnswer
@@ -151,7 +153,7 @@ fun QuestionScreen(
 
     if (question == null || total == 0) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("...", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         return
     }
@@ -561,12 +563,7 @@ private fun ChoiceButton(
                     .background(Color.Black.copy(alpha = 0.22f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    TriviaPalette.symbols[index],
-                    color = fg,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium,
-                )
+                TriviaShapeIcon(index = index, color = fg, size = 18.dp)
             }
             Spacer(Modifier.size(12.dp))
             Text(
@@ -584,7 +581,7 @@ private fun ChoiceButton(
                         .background(Color.White),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("\u2713", color = baseBg, fontWeight = FontWeight.Bold)
+                    IconCheck(tint = baseBg, size = 16.dp)
                 }
             } else if (isMine) {
                 Box(
@@ -594,11 +591,7 @@ private fun ChoiceButton(
                         .background(Color.White.copy(alpha = 0.85f)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        "\u25CB",
-                        color = baseBg,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    IconCircleOutline(tint = baseBg, size = 16.dp)
                 }
             }
         }
@@ -754,7 +747,7 @@ private fun BooleanBody(
         BooleanTile(
             choice = trueChoice,
             label = trueLabel,
-            glyph = "\u2713",            // ✓
+            glyph = "T",
             accent = TriviaPalette.backgrounds[1], // green
             isMine = trueChoice != null && live && myAnswer?.choiceId == trueChoice.id,
             revealCorrect = trueChoice != null && live && revealing && trueChoice.id == correctChoiceId,
@@ -766,7 +759,7 @@ private fun BooleanBody(
         BooleanTile(
             choice = falseChoice,
             label = falseLabel,
-            glyph = "\u2717",            // ✗
+            glyph = "F",
             accent = TriviaPalette.backgrounds[0], // red
             isMine = falseChoice != null && live && myAnswer?.choiceId == falseChoice.id,
             revealCorrect = falseChoice != null && live && revealing && falseChoice.id == correctChoiceId,
@@ -847,7 +840,7 @@ private fun BooleanTile(
                     .background(Color.White),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("\u2713", color = accent, fontWeight = FontWeight.Bold)
+                IconCheck(tint = accent, size = 18.dp)
             }
         } else if (isMine) {
             Box(
@@ -857,11 +850,7 @@ private fun BooleanTile(
                     .background(Color.White.copy(alpha = 0.85f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    "\u25CB",
-                    color = accent,
-                    fontWeight = FontWeight.Bold,
-                )
+                IconCircleOutline(tint = accent, size = 18.dp)
             }
         }
     }

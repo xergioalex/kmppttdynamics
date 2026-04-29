@@ -48,6 +48,9 @@ import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.domain.MeetupStatus
 import com.xergioalex.kmppttdynamics.settings.ThemeMode
 import com.xergioalex.kmppttdynamics.ui.components.AvatarImage
+import com.xergioalex.kmppttdynamics.ui.components.IconContrast
+import com.xergioalex.kmppttdynamics.ui.components.IconDarkMode
+import com.xergioalex.kmppttdynamics.ui.components.IconLightMode
 import com.xergioalex.kmppttdynamics.ui.components.PttHorizontalMark
 import kmppttdynamics.composeapp.generated.resources.Res
 import kmppttdynamics.composeapp.generated.resources.home_create
@@ -387,30 +390,30 @@ private fun StatusBadge(status: MeetupStatus) {
 }
 
 /**
- * Cycles SYSTEM → LIGHT → DARK → SYSTEM on each tap. Shows a
- * single icon reflecting the *currently active* mode so the user
- * always knows what they're using without needing a separate
- * settings screen.
+ * Cycles SYSTEM → LIGHT → DARK → SYSTEM on each tap. Uses
+ * Material Icons (vector-drawn) so it renders on every platform
+ * including Web/Wasm.
  */
 @Composable
 private fun ThemeToggle(
     current: ThemeMode,
     onToggle: (ThemeMode) -> Unit,
 ) {
-    val icon = when (current) {
-        ThemeMode.SYSTEM -> "◐"  // half-moon = follow OS
-        ThemeMode.LIGHT -> "☀"   // sun = forced light
-        ThemeMode.DARK -> "🌙"   // moon = forced dark
-    }
     val next = when (current) {
         ThemeMode.SYSTEM -> ThemeMode.LIGHT
         ThemeMode.LIGHT -> ThemeMode.DARK
         ThemeMode.DARK -> ThemeMode.SYSTEM
     }
+    val tint = when (current) {
+        ThemeMode.SYSTEM -> MaterialTheme.colorScheme.onSurfaceVariant
+        ThemeMode.LIGHT -> MaterialTheme.colorScheme.primary
+        ThemeMode.DARK -> MaterialTheme.colorScheme.tertiary
+    }
     IconButton(onClick = { onToggle(next) }) {
-        Text(
-            text = icon,
-            style = MaterialTheme.typography.titleLarge,
-        )
+        when (current) {
+            ThemeMode.SYSTEM -> IconContrast(tint = tint)
+            ThemeMode.LIGHT -> IconLightMode(tint = tint)
+            ThemeMode.DARK -> IconDarkMode(tint = tint)
+        }
     }
 }

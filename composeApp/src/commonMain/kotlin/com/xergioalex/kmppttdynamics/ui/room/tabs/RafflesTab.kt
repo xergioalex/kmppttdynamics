@@ -146,7 +146,7 @@ fun RafflesTab(
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when {
                 board == null -> Text(
-                    "…",
+                    "...",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 12.dp),
                 )

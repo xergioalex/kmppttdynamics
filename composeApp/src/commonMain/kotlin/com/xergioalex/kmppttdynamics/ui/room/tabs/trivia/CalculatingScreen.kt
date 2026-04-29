@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.xergioalex.kmppttdynamics.ui.components.IconSparkle
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuiz
 import kmppttdynamics.composeapp.generated.resources.Res
 import kmppttdynamics.composeapp.generated.resources.trivia_calculating
@@ -168,11 +169,9 @@ private fun BreathingHalo() {
                 .background(MaterialTheme.colorScheme.primary),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                "\u2728",
-                color = MaterialTheme.colorScheme.onPrimary,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
+            IconSparkle(
+                tint = MaterialTheme.colorScheme.onPrimary,
+                size = 36.dp,
             )
         }
     }

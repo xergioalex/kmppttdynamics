@@ -1,7 +1,16 @@
 package com.xergioalex.kmppttdynamics.ui.room.tabs.trivia
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 /**
  * Game-asset palette and timing constants for the Kahoot-style trivia
@@ -15,8 +24,8 @@ import androidx.compose.ui.graphics.Color
  * in some palettes), which would defeat the whole "tap the colored
  * button" mechanic. We compensate by always pairing each color with
  * a high-contrast on-color and a distinctive icon shape for
- * accessibility (red→triangle, blue→diamond, yellow→circle,
- * green→square — same as Kahoot).
+ * accessibility (red=triangle, blue=diamond, yellow=circle,
+ * green=square — same as Kahoot).
  */
 @Immutable
 object TriviaPalette {
@@ -33,9 +42,57 @@ object TriviaPalette {
     /** Indexed view used by the question / setup screens. */
     val backgrounds = listOf(Red, Blue, Yellow, Green)
     val foregrounds = listOf(OnRed, OnBlue, OnYellow, OnGreen)
+}
 
-    /** Unicode badges that double as the iconography. */
-    val symbols = listOf("\u25B2", "\u25C6", "\u25CF", "\u25A0")
+/**
+ * Canvas-drawn geometric shape for each trivia choice index.
+ * 0=triangle, 1=diamond, 2=circle, 3=square — renders on all
+ * platforms (web, Android, iOS, desktop) because it's pure draw
+ * calls, not font glyphs.
+ */
+@Composable
+fun TriviaShapeIcon(
+    index: Int,
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp,
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val inset = w * 0.12f
+        when (index % 4) {
+            0 -> {
+                val path = Path().apply {
+                    moveTo(w / 2f, inset)
+                    lineTo(w - inset, h - inset)
+                    lineTo(inset, h - inset)
+                    close()
+                }
+                drawPath(path, color)
+            }
+            1 -> {
+                val path = Path().apply {
+                    moveTo(w / 2f, inset)
+                    lineTo(w - inset, h / 2f)
+                    lineTo(w / 2f, h - inset)
+                    lineTo(inset, h / 2f)
+                    close()
+                }
+                drawPath(path, color)
+            }
+            2 -> {
+                drawCircle(color, radius = (w / 2f) - inset)
+            }
+            3 -> {
+                drawRect(
+                    color,
+                    topLeft = Offset(inset, inset),
+                    size = Size(w - inset * 2, h - inset * 2),
+                )
+            }
+        }
+    }
 }
 
 /** Configurable durations centralized so the visual feel can be tuned in one place. */
