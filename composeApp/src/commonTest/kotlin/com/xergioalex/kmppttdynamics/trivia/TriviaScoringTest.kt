@@ -99,6 +99,43 @@ class TriviaScoringTest {
     }
 
     @Test
+    fun multipleCorrectRequiresExactSetMatch() {
+        val correct = listOf("a", "b")
+        // Exact match → correct.
+        assertTrue(TriviaScoring.isMultipleCorrect(listOf("a", "b"), correct))
+        // Reordered submission still matches (sets, not lists).
+        assertTrue(TriviaScoring.isMultipleCorrect(listOf("b", "a"), correct))
+        // Missing one → wrong.
+        assertEquals(false, TriviaScoring.isMultipleCorrect(listOf("a"), correct))
+        // Extra pick → wrong (no partial credit).
+        assertEquals(false, TriviaScoring.isMultipleCorrect(listOf("a", "b", "c"), correct))
+        // Empty submission against non-empty correct → wrong.
+        assertEquals(false, TriviaScoring.isMultipleCorrect(emptyList(), correct))
+        // Empty correct (malformed question) → never correct, even
+        // if the user picked nothing.
+        assertEquals(false, TriviaScoring.isMultipleCorrect(emptyList(), emptyList()))
+    }
+
+    @Test
+    fun numericCorrectRespectsTolerance() {
+        // Exact match at zero tolerance.
+        assertTrue(TriviaScoring.isNumericCorrect(submitted = 42.0, expected = 42.0, tolerance = 0.0))
+        // Off by 0.5 with 0 tolerance → wrong.
+        assertEquals(false, TriviaScoring.isNumericCorrect(submitted = 42.5, expected = 42.0, tolerance = 0.0))
+        // Off by 0.5 with 0.5 tolerance → correct (both directions).
+        assertTrue(TriviaScoring.isNumericCorrect(submitted = 42.5, expected = 42.0, tolerance = 0.5))
+        assertTrue(TriviaScoring.isNumericCorrect(submitted = 41.5, expected = 42.0, tolerance = 0.5))
+        // Off by 0.6 with 0.5 tolerance → wrong.
+        assertEquals(false, TriviaScoring.isNumericCorrect(submitted = 42.6, expected = 42.0, tolerance = 0.5))
+        // Null expected (malformed question) → wrong.
+        assertEquals(false, TriviaScoring.isNumericCorrect(submitted = 42.0, expected = null, tolerance = 0.0))
+        // Null submission → wrong.
+        assertEquals(false, TriviaScoring.isNumericCorrect(submitted = null, expected = 42.0, tolerance = 0.0))
+        // Negative tolerance is treated as zero (defensive).
+        assertEquals(false, TriviaScoring.isNumericCorrect(submitted = 42.5, expected = 42.0, tolerance = -1.0))
+    }
+
+    @Test
     fun scoresStayMonotonicallyDecreasingForCorrectAnswers() {
         // Property-style sanity check: faster correct answers should
         // never score lower than slower ones.

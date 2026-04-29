@@ -33,11 +33,13 @@ import com.xergioalex.kmppttdynamics.domain.AppUser
 import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.domain.ParticipantRole
 import com.xergioalex.kmppttdynamics.trivia.TriviaBoard
+import com.xergioalex.kmppttdynamics.trivia.TriviaQuestionType
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuiz
 import com.xergioalex.kmppttdynamics.trivia.TriviaStatus
 import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.CalculatingScreen
 import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.HostSetupScreen
 import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.LeaderboardScreen
+import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.QuestionPayload
 import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.QuestionScreen
 import com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.TriviaCard
 import kmppttdynamics.composeapp.generated.resources.Res
@@ -222,23 +224,33 @@ fun TriviaTab(
                         questions = board?.questionsByQuiz?.get(editingQuiz.id).orEmpty(),
                         choicesByQuestion = board?.choicesByQuestion ?: emptyMap(),
                         isWorking = working != null,
-                        onAddQuestion = { prompt, secs, labels, correctIdx ->
+                        onAddQuestion = { payload ->
                             runAction("add-question") {
                                 val pos = board?.questionsByQuiz
                                     ?.get(editingQuiz.id)?.size ?: 0
                                 val q = container.trivia.addQuestion(
                                     quizId = editingQuiz.id,
                                     position = pos,
-                                    prompt = prompt,
-                                    secondsToAnswer = secs,
+                                    prompt = payload.prompt,
+                                    secondsToAnswer = payload.secondsToAnswer,
+                                    type = payload.type,
+                                    expectedNumber = payload.expectedNumber,
+                                    numericTolerance = payload.numericTolerance,
                                 )
-                                container.trivia.replaceChoices(q.id, labels, correctIdx)
+                                writeChoicesFor(payload, q.id, container)
                             }
                         },
-                        onUpdateQuestion = { questionId, prompt, secs, labels, correctIdx ->
+                        onUpdateQuestion = { questionId, payload ->
                             runAction("update-question") {
-                                container.trivia.updateQuestion(questionId, prompt, secs)
-                                container.trivia.replaceChoices(questionId, labels, correctIdx)
+                                container.trivia.updateQuestion(
+                                    questionId = questionId,
+                                    prompt = payload.prompt,
+                                    secondsToAnswer = payload.secondsToAnswer,
+                                    type = payload.type,
+                                    expectedNumber = payload.expectedNumber,
+                                    numericTolerance = payload.numericTolerance,
+                                )
+                                writeChoicesFor(payload, questionId, container)
                             }
                         },
                         onDeleteQuestion = { questionId ->
@@ -484,4 +496,46 @@ private fun CreateTriviaDialog(
             }
         },
     )
+}
+
+/**
+ * Writes the per-type child rows for [payload] to [questionId].
+ * Boolean questions get two pre-baked choices ("True", "False") —
+ * the gameplay UI renders its own localized labels keyed off
+ * position, so storing English here is fine and keeps the row shape
+ * identical regardless of the host's UI language. Numeric questions
+ * don't have any choices — `expected_number` and `numeric_tolerance`
+ * are stored on the question row itself.
+ */
+private suspend fun writeChoicesFor(
+    payload: QuestionPayload,
+    questionId: String,
+    container: AppContainer,
+) {
+    when (payload.type) {
+        TriviaQuestionType.SINGLE,
+        TriviaQuestionType.MULTIPLE -> {
+            container.trivia.replaceChoices(
+                questionId = questionId,
+                labels = payload.labels,
+                correctIndices = payload.correctIndices,
+            )
+        }
+        TriviaQuestionType.BOOLEAN -> {
+            container.trivia.replaceChoices(
+                questionId = questionId,
+                labels = listOf("True", "False"),
+                correctIndices = payload.correctIndices,
+            )
+        }
+        TriviaQuestionType.NUMERIC -> {
+            // Drop any leftover choices from a previous non-numeric
+            // type if the host changed type during edit.
+            container.trivia.replaceChoices(
+                questionId = questionId,
+                labels = emptyList(),
+                correctIndices = emptySet(),
+            )
+        }
+    }
 }

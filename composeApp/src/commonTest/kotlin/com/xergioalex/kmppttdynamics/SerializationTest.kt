@@ -6,9 +6,11 @@ import com.xergioalex.kmppttdynamics.domain.PollDraft
 import com.xergioalex.kmppttdynamics.domain.PollStatus
 import com.xergioalex.kmppttdynamics.domain.RaffleDraft
 import com.xergioalex.kmppttdynamics.domain.RaffleStatus
+import com.xergioalex.kmppttdynamics.trivia.TriviaAnswerDraft
 import com.xergioalex.kmppttdynamics.trivia.TriviaChoiceDraft
 import com.xergioalex.kmppttdynamics.trivia.TriviaEntryDraft
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuestionDraft
+import com.xergioalex.kmppttdynamics.trivia.TriviaQuestionType
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuizDraft
 import com.xergioalex.kmppttdynamics.trivia.TriviaStatus
 import kotlin.reflect.typeOf
@@ -232,6 +234,125 @@ class SerializationTest {
             }
             assertTrue(payload == expected, "TriviaStatus.$status serialized as $payload, expected $expected")
         }
+    }
+
+    @Test
+    fun triviaQuestionDraftDefaultsToSingleType() {
+        // Existing behavior: a brand-new question authored without
+        // specifying a type lands in the DB as 'single'. This
+        // protects the column-default + the wire payload from
+        // drifting out of sync.
+        val payload = json.encodeToString(
+            TriviaQuestionDraft.serializer(),
+            TriviaQuestionDraft(
+                quizId = "q1",
+                position = 0,
+                prompt = "Capital of France?",
+            ),
+        )
+        assertTrue(
+            "\"question_type\":\"single\"" in payload,
+            "expected default question_type=single, got: $payload",
+        )
+        assertTrue(
+            "\"numeric_tolerance\":0" in payload,
+            "expected default numeric_tolerance=0, got: $payload",
+        )
+    }
+
+    @Test
+    fun triviaQuestionDraftEncodesNumericFields() {
+        val payload = json.encodeToString(
+            TriviaQuestionDraft.serializer(),
+            TriviaQuestionDraft(
+                quizId = "q1",
+                position = 1,
+                prompt = "What is 2 + 2?",
+                type = TriviaQuestionType.NUMERIC,
+                expectedNumber = 4.0,
+                numericTolerance = 0.5,
+            ),
+        )
+        assertTrue("\"question_type\":\"numeric\"" in payload, payload)
+        assertTrue("\"expected_number\":4.0" in payload, payload)
+        assertTrue("\"numeric_tolerance\":0.5" in payload, payload)
+    }
+
+    @Test
+    fun triviaQuestionTypeEnumSerializesToLowercaseSnake() {
+        for (type in TriviaQuestionType.entries) {
+            val payload = Json.encodeToString(TriviaQuestionType.serializer(), type)
+            val expected = when (type) {
+                TriviaQuestionType.SINGLE -> "\"single\""
+                TriviaQuestionType.BOOLEAN -> "\"boolean\""
+                TriviaQuestionType.MULTIPLE -> "\"multiple\""
+                TriviaQuestionType.NUMERIC -> "\"numeric\""
+            }
+            assertTrue(payload == expected, "TriviaQuestionType.$type serialized as $payload, expected $expected")
+        }
+    }
+
+    @Test
+    fun triviaAnswerDraftSingleChoiceOmitsArrayAndNumeric() {
+        // A single-choice answer must NOT set choice_ids = null
+        // explicitly on the wire — Postgres treats `null` and
+        // "missing key" identically here, but `explicitNulls = false`
+        // (mirroring the supabase-kt config) keeps the payload
+        // smaller and forward-compatible.
+        val tolerantJson = Json {
+            encodeDefaults = true
+            ignoreUnknownKeys = true
+            explicitNulls = false
+        }
+        val payload = tolerantJson.encodeToString(
+            TriviaAnswerDraft.serializer(),
+            TriviaAnswerDraft(
+                quizId = "q1",
+                questionId = "qu1",
+                participantId = "p1",
+                clientId = "abc123",
+                choiceId = "ch1",
+            ),
+        )
+        assertTrue("\"choice_id\":\"ch1\"" in payload, payload)
+        assertTrue(
+            "choice_ids" !in payload,
+            "expected choice_ids to be omitted for single-choice, got: $payload",
+        )
+        assertTrue(
+            "numeric_value" !in payload,
+            "expected numeric_value to be omitted for single-choice, got: $payload",
+        )
+    }
+
+    @Test
+    fun triviaAnswerDraftMultipleChoiceSerializesArray() {
+        val payload = json.encodeToString(
+            TriviaAnswerDraft.serializer(),
+            TriviaAnswerDraft(
+                quizId = "q1",
+                questionId = "qu1",
+                participantId = "p1",
+                clientId = "abc123",
+                choiceIds = listOf("a", "b"),
+            ),
+        )
+        assertTrue("\"choice_ids\":[\"a\",\"b\"]" in payload, payload)
+    }
+
+    @Test
+    fun triviaAnswerDraftNumericSerializesValue() {
+        val payload = json.encodeToString(
+            TriviaAnswerDraft.serializer(),
+            TriviaAnswerDraft(
+                quizId = "q1",
+                questionId = "qu1",
+                participantId = "p1",
+                clientId = "abc123",
+                numericValue = 42.5,
+            ),
+        )
+        assertTrue("\"numeric_value\":42.5" in payload, payload)
     }
 
     @Test

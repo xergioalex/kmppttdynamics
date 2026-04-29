@@ -182,11 +182,20 @@ class TriviaRepository(private val supabase: SupabaseClient) {
 
     // ---- Question / choice editing --------------------------------------
 
+    /**
+     * Adds a question. [type] selects which gameplay variant fires
+     * client-side; for [TriviaQuestionType.NUMERIC] also pass
+     * [expectedNumber] (and optionally [numericTolerance]) — for the
+     * other three kinds those parameters are ignored on the server.
+     */
     suspend fun addQuestion(
         quizId: String,
         position: Int,
         prompt: String,
         secondsToAnswer: Int,
+        type: TriviaQuestionType = TriviaQuestionType.SINGLE,
+        expectedNumber: Double? = null,
+        numericTolerance: Double = 0.0,
     ): TriviaQuestion =
         supabase.from(QUESTIONS)
             .insert(
@@ -195,14 +204,38 @@ class TriviaRepository(private val supabase: SupabaseClient) {
                     position = position,
                     prompt = prompt.trim(),
                     secondsToAnswer = secondsToAnswer,
+                    type = type,
+                    expectedNumber = if (type == TriviaQuestionType.NUMERIC) expectedNumber else null,
+                    numericTolerance = if (type == TriviaQuestionType.NUMERIC) numericTolerance else 0.0,
                 ),
             ) { select() }
             .decodeSingle()
 
-    suspend fun updateQuestion(questionId: String, prompt: String, secondsToAnswer: Int) {
+    suspend fun updateQuestion(
+        questionId: String,
+        prompt: String,
+        secondsToAnswer: Int,
+        type: TriviaQuestionType = TriviaQuestionType.SINGLE,
+        expectedNumber: Double? = null,
+        numericTolerance: Double = 0.0,
+    ) {
         supabase.from(QUESTIONS).update({
             set("prompt", prompt.trim())
             set("seconds_to_answer", secondsToAnswer)
+            set("question_type", type.name.lowercase())
+            // For non-numeric types we explicitly null these so a
+            // type-change from numeric to single doesn't leave the
+            // expected_number lying around (it's harmless because
+            // the trigger keys off type, but it makes the schema
+            // shape easier to reason about).
+            set(
+                "expected_number",
+                if (type == TriviaQuestionType.NUMERIC) expectedNumber else null,
+            )
+            set(
+                "numeric_tolerance",
+                if (type == TriviaQuestionType.NUMERIC) numericTolerance else 0.0,
+            )
         }) { filter { eq("id", questionId) } }
     }
 
@@ -211,18 +244,24 @@ class TriviaRepository(private val supabase: SupabaseClient) {
     }
 
     /**
-     * Replaces the four choices for [questionId] in one shot: deletes
-     * existing rows, inserts the new four. The delete-then-insert is
-     * intentional — editing four labels in place would need four
-     * separate UPDATEs and four extra realtime ticks.
+     * Replaces the choices for [questionId] in one shot: deletes
+     * existing rows, inserts the new ones. Used for single, boolean
+     * and multiple types; numeric questions don't have any choices
+     * (the host UI never calls this for numeric).
      *
-     * The host UI keeps `labels` length at 4 and points at exactly
-     * one [correctIndex] (0..3); this is enforced visually, not at
-     * the database level. Server-side validation lives in the trigger
-     * that fires when transitioning to `lobby` (TODO: tighten with a
-     * BEFORE UPDATE check on `trivia_quizzes`).
+     * [correctIndices] is the set of 0-based positions that should
+     * carry `is_correct=true`:
+     *  - single, boolean → exactly one entry
+     *  - multiple → one or more entries
+     *
+     * Validation is enforced visually by the host UI; the database
+     * trigger handles malformed cases by returning `is_correct=false`.
      */
-    suspend fun replaceChoices(questionId: String, labels: List<String>, correctIndex: Int) {
+    suspend fun replaceChoices(
+        questionId: String,
+        labels: List<String>,
+        correctIndices: Set<Int>,
+    ) {
         supabase.from(CHOICES).delete { filter { eq("question_id", questionId) } }
         if (labels.isEmpty()) return
         val rows = labels.mapIndexed { idx, raw ->
@@ -230,10 +269,19 @@ class TriviaRepository(private val supabase: SupabaseClient) {
                 questionId = questionId,
                 position = idx,
                 label = raw.trim().ifEmpty { "Option ${idx + 1}" },
-                isCorrect = idx == correctIndex,
+                isCorrect = idx in correctIndices,
             )
         }
         supabase.from(CHOICES).insert(rows)
+    }
+
+    /**
+     * Convenience overload preserving the original single-correct
+     * call site (used by single/boolean question editors). Same
+     * server semantics as the set-based version.
+     */
+    suspend fun replaceChoices(questionId: String, labels: List<String>, correctIndex: Int) {
+        replaceChoices(questionId, labels, setOf(correctIndex))
     }
 
     // ---- Enrollment (opt-in roster, mirrors raffles) --------------------
@@ -288,8 +336,11 @@ class TriviaRepository(private val supabase: SupabaseClient) {
     // ---- Answer submission ----------------------------------------------
 
     /**
-     * Records this device's answer for the active question. Uses
-     * upsert with `ignoreDuplicates=true` — the UNIQUE
+     * Records a single-choice or boolean answer. Both kinds populate
+     * `choice_id`; the question's `question_type` decides which one
+     * the trigger reads it as.
+     *
+     * Uses upsert with `ignoreDuplicates=true` — the UNIQUE
      * `(question_id, client_id)` index makes a second tap (the user's
      * finger bounced, or the call was retried after a network blip)
      * a no-op instead of a 409.
@@ -308,6 +359,57 @@ class TriviaRepository(private val supabase: SupabaseClient) {
                 participantId = participantId,
                 clientId = clientId,
                 choiceId = choiceId,
+            ),
+        ) {
+            onConflict = "question_id,client_id"
+            ignoreDuplicates = true
+        }
+    }
+
+    /**
+     * Records a multiple-choice answer. The trigger compares the
+     * submitted set against the canonical correct-set; partial picks
+     * score zero.
+     */
+    suspend fun answerMultiple(
+        quizId: String,
+        questionId: String,
+        choiceIds: List<String>,
+        participantId: String,
+        clientId: String,
+    ) {
+        supabase.from(ANSWERS).upsert(
+            TriviaAnswerDraft(
+                quizId = quizId,
+                questionId = questionId,
+                participantId = participantId,
+                clientId = clientId,
+                choiceIds = choiceIds,
+            ),
+        ) {
+            onConflict = "question_id,client_id"
+            ignoreDuplicates = true
+        }
+    }
+
+    /**
+     * Records a numeric answer. The trigger compares it against the
+     * question's `expected_number` with `numeric_tolerance`.
+     */
+    suspend fun answerNumeric(
+        quizId: String,
+        questionId: String,
+        value: Double,
+        participantId: String,
+        clientId: String,
+    ) {
+        supabase.from(ANSWERS).upsert(
+            TriviaAnswerDraft(
+                quizId = quizId,
+                questionId = questionId,
+                participantId = participantId,
+                clientId = clientId,
+                numericValue = value,
             ),
         ) {
             onConflict = "question_id,client_id"

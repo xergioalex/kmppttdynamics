@@ -155,7 +155,32 @@
     <string name="trivia_delete_question">Delete</string>
     <string name="trivia_edit_question">Edit</string>
     <string name="trivia_open_lobby">Open lobby</string>
-    <string name="trivia_open_lobby_helper">Each question needs a prompt and one correct answer marked.</string>
+    <string name="trivia_open_lobby_helper">Each question needs a prompt and at least one correct answer marked.</string>
+    <!-- Question type picker (host) -->
+    <string name="trivia_type_pick_title">Choose a question type</string>
+    <string name="trivia_type_pick_subtitle">Pick the format players will see.</string>
+    <string name="trivia_type_single">Single choice</string>
+    <string name="trivia_type_single_desc">Four options, exactly one correct answer.</string>
+    <string name="trivia_type_boolean">True / False</string>
+    <string name="trivia_type_boolean_desc">A statement; players pick true or false.</string>
+    <string name="trivia_type_multiple">Multiple choice</string>
+    <string name="trivia_type_multiple_desc">Four options; one or more can be correct.</string>
+    <string name="trivia_type_numeric">Numeric answer</string>
+    <string name="trivia_type_numeric_desc">Players type a number (with optional ± tolerance).</string>
+    <!-- Editor variants -->
+    <string name="trivia_boolean_label_true">True</string>
+    <string name="trivia_boolean_label_false">False</string>
+    <string name="trivia_choice_correct_multiple">Mark every correct choice.</string>
+    <string name="trivia_numeric_expected">Expected answer</string>
+    <string name="trivia_numeric_tolerance">Tolerance (±)</string>
+    <string name="trivia_numeric_tolerance_helper">0 = exact match. Use a positive value to accept close answers.</string>
+    <string name="trivia_question_type_label">Type:</string>
+    <!-- Gameplay -->
+    <string name="trivia_multiple_hint">Tap each correct option, then submit.</string>
+    <string name="trivia_multiple_submit">Submit %1$d selected</string>
+    <string name="trivia_multiple_submit_empty">Submit</string>
+    <string name="trivia_numeric_input_hint">Type a number</string>
+    <string name="trivia_numeric_submit">Submit answer</string>
     <string name="trivia_back_to_setup">Edit questions</string>
     <string name="trivia_lobby_title">Waiting for players…</string>
     <string name="trivia_lobby_summary">%1$d questions · ~%2$d s each</string>

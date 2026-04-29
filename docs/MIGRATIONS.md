@@ -21,7 +21,8 @@ supabase/migrations/
 ├── 005_reset_data.sql           # wipe room data after the client_id refactor
 ├── 006_app_users.sql            # cross-meetup profile (display name + unique avatar)
 ├── 007_trivia.sql               # Kahoot-style trivia: 4 tables + view + scoring trigger
-└── 008_trivia_entries.sql       # opt-in enrollment for trivia (mirrors raffle_entries)
+├── 008_trivia_entries.sql       # opt-in enrollment for trivia (mirrors raffle_entries)
+└── 009_trivia_question_types.sql # adds boolean / multiple / numeric question kinds + per-type trigger
 ```
 
 Run them all by setting up `.env` and executing:
@@ -269,6 +270,52 @@ The `client_id` column is denormalized from
 need an extra hop. The `(quiz_id, participant_id)` UNIQUE makes the
 upsert from "Enter" or "Enroll all" idempotent — a second tap is a
 silent no-op, never a 409.
+
+## 009 — trivia question types (boolean / multiple / numeric)
+
+Extends the trivia game beyond single-choice. Adds:
+
+```sql
+create type trivia_question_kind as enum ('single', 'boolean', 'multiple', 'numeric');
+
+alter table trivia_questions
+    add column question_type     trivia_question_kind not null default 'single',
+    add column expected_number   numeric,
+    add column numeric_tolerance numeric not null default 0;
+
+alter table trivia_answers
+    add column choice_ids    uuid[],
+    add column numeric_value numeric,
+    alter column choice_id drop not null;
+```
+
+The same `BEFORE INSERT` trigger (`trivia_compute_answer_score`) gets
+three new correctness branches:
+
+- `single` / `boolean` → existing `trivia_choices.is_correct` lookup.
+- `multiple` → set-equality between submitted `choice_ids` and the
+  set of choices with `is_correct=true`. All-or-nothing; the trigger
+  sorts both arrays so client order doesn't matter.
+- `numeric` → `abs(numeric_value - expected_number) <= numeric_tolerance`.
+
+The Kahoot scoring formula is unchanged (500 floor + 500 speed bonus);
+only the correctness check fans out per type. Boolean rides the same
+plumbing as single-choice with two pre-baked rows ("True" / "False"
+at positions 0 / 1) so the trigger doesn't need to know the type
+exists.
+
+UX consequence on the client:
+
+- "Add question" opens a four-card type chooser (Single / True-False /
+  Multiple / Numeric), then a per-type editor variant.
+- Gameplay renders four distinct UIs: Kahoot tiles, big two-tile T/F,
+  toggleable tiles + Submit, and decimal input + Submit.
+- The pure-Kotlin `TriviaScoring` mirror grows two helpers
+  (`isMultipleCorrect`, `isNumericCorrect`) that match the trigger so
+  `TriviaScoringTest` can lock the parity contract.
+
+For the full per-screen breakdown read [TRIVIA.md →
+Question types](TRIVIA.md#question-types).
 
 ## Adding a new migration
 

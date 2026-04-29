@@ -1,5 +1,6 @@
 package com.xergioalex.kmppttdynamics.trivia
 
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -89,5 +90,41 @@ object TriviaScoring {
         if (!questionIsCurrent) return cap
         val started = questionStartedAt ?: now
         return (now - started).coerceIn(0L, cap.toLong()).toInt()
+    }
+
+    /**
+     * Mirror of the trigger's per-type correctness check for
+     * [TriviaQuestionType.MULTIPLE]. The submitted set is correct iff
+     * it has the *exact* same elements as the canonical correct set —
+     * no missing picks, no extras. Order doesn't matter.
+     *
+     * Edge cases that match the Postgres trigger:
+     *   - Empty submitted set against a non-empty correct set → wrong.
+     *   - Empty submitted AND empty correct set → wrong (a question
+     *     with zero correct choices is malformed; the trigger
+     *     intentionally returns false to surface the bug instead of
+     *     silently scoring everyone correct).
+     */
+    fun isMultipleCorrect(submitted: Collection<String>, correct: Collection<String>): Boolean {
+        if (correct.isEmpty()) return false
+        return submitted.toSet() == correct.toSet()
+    }
+
+    /**
+     * Mirror of the trigger's per-type correctness check for
+     * [TriviaQuestionType.NUMERIC]. Correct iff the submitted value
+     * is within `[expected ± tolerance]`.
+     *
+     *   - Null `expected` (malformed question) → never correct.
+     *   - Null `submitted` (empty input) → never correct.
+     *   - Negative tolerance is treated as 0 (matches the trigger's
+     *     `coalesce(q_tolerance, 0)` plus a NOT NULL DEFAULT 0 on the
+     *     column — this client guard catches a future regression if
+     *     the column constraint is ever loosened).
+     */
+    fun isNumericCorrect(submitted: Double?, expected: Double?, tolerance: Double): Boolean {
+        if (expected == null || submitted == null) return false
+        val safeTolerance = if (tolerance < 0) 0.0 else tolerance
+        return abs(submitted - expected) <= safeTolerance
     }
 }

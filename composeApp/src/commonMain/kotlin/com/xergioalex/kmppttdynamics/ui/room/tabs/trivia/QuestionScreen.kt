@@ -20,6 +20,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,8 +34,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -45,6 +49,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +61,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.xergioalex.kmppttdynamics.AppContainer
@@ -62,11 +69,20 @@ import com.xergioalex.kmppttdynamics.domain.MeetupParticipant
 import com.xergioalex.kmppttdynamics.trivia.TriviaAnswer
 import com.xergioalex.kmppttdynamics.trivia.TriviaChoice
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuestion
+import com.xergioalex.kmppttdynamics.trivia.TriviaQuestionType
 import com.xergioalex.kmppttdynamics.trivia.TriviaQuiz
 import kmppttdynamics.composeapp.generated.resources.Res
 import kmppttdynamics.composeapp.generated.resources.trivia_answered_count
+import kmppttdynamics.composeapp.generated.resources.trivia_boolean_label_false
+import kmppttdynamics.composeapp.generated.resources.trivia_boolean_label_true
 import kmppttdynamics.composeapp.generated.resources.trivia_correct
 import kmppttdynamics.composeapp.generated.resources.trivia_locked_in
+import kmppttdynamics.composeapp.generated.resources.trivia_multiple_hint
+import kmppttdynamics.composeapp.generated.resources.trivia_multiple_submit
+import kmppttdynamics.composeapp.generated.resources.trivia_multiple_submit_empty
+import kmppttdynamics.composeapp.generated.resources.trivia_numeric_expected
+import kmppttdynamics.composeapp.generated.resources.trivia_numeric_input_hint
+import kmppttdynamics.composeapp.generated.resources.trivia_numeric_submit
 import kmppttdynamics.composeapp.generated.resources.trivia_spectating
 import kmppttdynamics.composeapp.generated.resources.trivia_question_header
 import kmppttdynamics.composeapp.generated.resources.trivia_seconds_remaining
@@ -142,7 +158,6 @@ fun QuestionScreen(
 
     val choices = (choicesByQuestion[question.id].orEmpty())
         .sortedBy { it.position }
-        .take(4)
 
     val answerScope = rememberCoroutineScope()
     var answers by remember(quiz.id) { mutableStateOf<List<TriviaAnswer>>(emptyList()) }
@@ -181,6 +196,9 @@ fun QuestionScreen(
     }
     val correctChoiceId = remember(choices) {
         choices.firstOrNull { it.isCorrect }?.id
+    }
+    val correctChoiceIds = remember(choices) {
+        choices.filter { it.isCorrect }.map { it.id }.toSet()
     }
 
     // ---- Reveal lifecycle ---------------------------------------------
@@ -243,7 +261,7 @@ fun QuestionScreen(
             val animatedQuestion = questions.getOrNull(animatedIndex) ?: question
             val animatedChoices = (choicesByQuestion[animatedQuestion.id].orEmpty())
                 .sortedBy { it.position }
-                .take(4)
+            val live = animatedIndex == index
 
             Column(modifier = Modifier.fillMaxWidth()) {
                 Box(
@@ -263,56 +281,86 @@ fun QuestionScreen(
                     )
                 }
                 Spacer(Modifier.height(20.dp))
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    animatedChoices.forEachIndexed { idx, choice ->
-                        // For the *current* question we drive the
-                        // locked / reveal states off live data; for
-                        // an outgoing previous-question frame those
-                        // signals don't apply (the user already saw
-                        // the reveal before the slide started).
-                        val live = animatedIndex == index
-                        val isMyChoice = live && myAnswer?.choiceId == choice.id
-                        val showCorrect = live && revealing && choice.id == correctChoiceId
-                        val showIncorrectMine = live && revealing && isMyChoice &&
-                            choice.id != correctChoiceId
-                        ChoiceButton(
-                            index = idx,
-                            label = choice.label,
-                            // Spectators (not enrolled) and outgoing
-                            // previous-question frames can never tap;
-                            // also covers post-answer / post-timer
-                            // states on the live frame.
-                            locked = !live || !canAnswer || myAnswer != null || timeUp,
-                            isMine = isMyChoice,
-                            revealCorrect = showCorrect,
-                            revealMineWrong = showIncorrectMine,
-                            onClick = {
-                                if (!live || !canAnswer || myAnswer != null || timeUp) {
-                                    return@ChoiceButton
-                                }
-                                // Fire-and-forget. The realtime feed
-                                // echoes our row back via `answers`;
-                                // the (question_id, client_id) UNIQUE
-                                // makes any retry idempotent.
+                // Per-type gameplay body. We pass `live` so the
+                // outgoing frame stays inert during the slide-out.
+                when (animatedQuestion.type) {
+                    TriviaQuestionType.SINGLE ->
+                        SingleChoiceBody(
+                            question = animatedQuestion,
+                            choices = animatedChoices.take(4),
+                            live = live,
+                            canAnswer = canAnswer,
+                            myAnswer = myAnswer,
+                            revealing = revealing,
+                            timeUp = timeUp,
+                            correctChoiceId = correctChoiceId,
+                            onPick = { choice ->
+                                fireSingleAnswer(answerScope, container, quiz, question, choice, me, myClientId)
+                            },
+                        )
+                    TriviaQuestionType.BOOLEAN ->
+                        BooleanBody(
+                            choices = animatedChoices.take(2),
+                            live = live,
+                            canAnswer = canAnswer,
+                            myAnswer = myAnswer,
+                            revealing = revealing,
+                            timeUp = timeUp,
+                            correctChoiceId = correctChoiceId,
+                            onPick = { choice ->
+                                fireSingleAnswer(answerScope, container, quiz, question, choice, me, myClientId)
+                            },
+                        )
+                    TriviaQuestionType.MULTIPLE ->
+                        MultipleChoiceBody(
+                            question = animatedQuestion,
+                            choices = animatedChoices.take(4),
+                            live = live,
+                            canAnswer = canAnswer,
+                            myAnswer = myAnswer,
+                            revealing = revealing,
+                            timeUp = timeUp,
+                            correctChoiceIds = correctChoiceIds,
+                            onSubmit = { selectedIds ->
                                 answerScope.launch {
                                     runCatching {
-                                        container.trivia.answer(
+                                        container.trivia.answerMultiple(
                                             quizId = quiz.id,
                                             questionId = question.id,
-                                            choiceId = choice.id,
+                                            choiceIds = selectedIds,
                                             participantId = me.id,
                                             clientId = myClientId,
                                         )
                                     }.onFailure {
-                                        println("TriviaQuestion.answer failed: ${it::class.simpleName}: ${it.message}")
+                                        println("TriviaQuestion.answerMultiple failed: ${it::class.simpleName}: ${it.message}")
                                     }
                                 }
                             },
                         )
-                    }
+                    TriviaQuestionType.NUMERIC ->
+                        NumericBody(
+                            question = animatedQuestion,
+                            live = live,
+                            canAnswer = canAnswer,
+                            myAnswer = myAnswer,
+                            revealing = revealing,
+                            timeUp = timeUp,
+                            onSubmit = { value ->
+                                answerScope.launch {
+                                    runCatching {
+                                        container.trivia.answerNumeric(
+                                            quizId = quiz.id,
+                                            questionId = question.id,
+                                            value = value,
+                                            participantId = me.id,
+                                            clientId = myClientId,
+                                        )
+                                    }.onFailure {
+                                        println("TriviaQuestion.answerNumeric failed: ${it::class.simpleName}: ${it.message}")
+                                    }
+                                }
+                            },
+                        )
                 }
             }
         }
@@ -609,3 +657,418 @@ private fun RevealBanner(points: Int, wasCorrect: Boolean, hadAnswer: Boolean) {
     }
 }
 
+// =============================================================
+//  Per-type gameplay bodies
+// =============================================================
+
+/**
+ * Helper that launches a fire-and-forget single-choice answer. Used
+ * by both SINGLE and BOOLEAN bodies because the wire payload is
+ * identical (one `choice_id`).
+ */
+private fun fireSingleAnswer(
+    scope: kotlinx.coroutines.CoroutineScope,
+    container: AppContainer,
+    quiz: TriviaQuiz,
+    question: TriviaQuestion,
+    choice: TriviaChoice,
+    me: MeetupParticipant,
+    myClientId: String,
+) {
+    scope.launch {
+        runCatching {
+            container.trivia.answer(
+                quizId = quiz.id,
+                questionId = question.id,
+                choiceId = choice.id,
+                participantId = me.id,
+                clientId = myClientId,
+            )
+        }.onFailure {
+            println("TriviaQuestion.answer failed: ${it::class.simpleName}: ${it.message}")
+        }
+    }
+}
+
+@Composable
+private fun SingleChoiceBody(
+    question: TriviaQuestion,
+    choices: List<TriviaChoice>,
+    live: Boolean,
+    canAnswer: Boolean,
+    myAnswer: TriviaAnswer?,
+    revealing: Boolean,
+    timeUp: Boolean,
+    correctChoiceId: String?,
+    onPick: (TriviaChoice) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        choices.forEachIndexed { idx, choice ->
+            val isMyChoice = live && myAnswer?.choiceId == choice.id
+            val showCorrect = live && revealing && choice.id == correctChoiceId
+            val showIncorrectMine = live && revealing && isMyChoice && choice.id != correctChoiceId
+            ChoiceButton(
+                index = idx,
+                label = choice.label,
+                locked = !live || !canAnswer || myAnswer != null || timeUp,
+                isMine = isMyChoice,
+                revealCorrect = showCorrect,
+                revealMineWrong = showIncorrectMine,
+                onClick = {
+                    if (!live || !canAnswer || myAnswer != null || timeUp) return@ChoiceButton
+                    onPick(choice)
+                },
+            )
+        }
+    }
+}
+
+/**
+ * True / False gameplay. Renders two large stacked tiles with the
+ * existing palette (green for True, red for False), localized
+ * labels (the DB labels are always English placeholders), and a
+ * giant glyph so the choice reads from across the room.
+ */
+@Composable
+private fun BooleanBody(
+    choices: List<TriviaChoice>,
+    live: Boolean,
+    canAnswer: Boolean,
+    myAnswer: TriviaAnswer?,
+    revealing: Boolean,
+    timeUp: Boolean,
+    correctChoiceId: String?,
+    onPick: (TriviaChoice) -> Unit,
+) {
+    val trueLabel = stringResource(Res.string.trivia_boolean_label_true)
+    val falseLabel = stringResource(Res.string.trivia_boolean_label_false)
+    val trueChoice = choices.getOrNull(0)
+    val falseChoice = choices.getOrNull(1)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        BooleanTile(
+            choice = trueChoice,
+            label = trueLabel,
+            glyph = "\u2713",            // ✓
+            accent = TriviaPalette.backgrounds[1], // green
+            isMine = trueChoice != null && live && myAnswer?.choiceId == trueChoice.id,
+            revealCorrect = trueChoice != null && live && revealing && trueChoice.id == correctChoiceId,
+            revealMineWrong = trueChoice != null && live && revealing &&
+                myAnswer?.choiceId == trueChoice.id && trueChoice.id != correctChoiceId,
+            locked = !live || !canAnswer || myAnswer != null || timeUp,
+            onClick = { trueChoice?.let(onPick) },
+        )
+        BooleanTile(
+            choice = falseChoice,
+            label = falseLabel,
+            glyph = "\u2717",            // ✗
+            accent = TriviaPalette.backgrounds[0], // red
+            isMine = falseChoice != null && live && myAnswer?.choiceId == falseChoice.id,
+            revealCorrect = falseChoice != null && live && revealing && falseChoice.id == correctChoiceId,
+            revealMineWrong = falseChoice != null && live && revealing &&
+                myAnswer?.choiceId == falseChoice.id && falseChoice.id != correctChoiceId,
+            locked = !live || !canAnswer || myAnswer != null || timeUp,
+            onClick = { falseChoice?.let(onPick) },
+        )
+    }
+}
+
+@Composable
+private fun BooleanTile(
+    choice: TriviaChoice?,
+    label: String,
+    glyph: String,
+    accent: Color,
+    isMine: Boolean,
+    revealCorrect: Boolean,
+    revealMineWrong: Boolean,
+    locked: Boolean,
+    onClick: () -> Unit,
+) {
+    val target = when {
+        revealCorrect -> accent
+        revealMineWrong -> accent.copy(alpha = 0.35f)
+        locked && !isMine -> accent.copy(alpha = 0.45f)
+        else -> accent
+    }
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed && !locked) 0.96f else 1f,
+        animationSpec = tween(durationMillis = 120, easing = EaseOutCubic),
+        label = "trivia-bool-press",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(pressScale)
+            .clip(RoundedCornerShape(14.dp))
+            .background(target)
+            .clickable(
+                enabled = !locked && choice != null,
+                interactionSource = interactionSource,
+                indication = null,
+            ) { onClick() }
+            .padding(horizontal = 18.dp, vertical = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.22f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                glyph,
+                color = Color.White,
+                fontWeight = FontWeight.ExtraBold,
+                style = MaterialTheme.typography.headlineSmall,
+            )
+        }
+        Spacer(Modifier.size(16.dp))
+        Text(
+            label,
+            color = Color.White,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.weight(1f),
+        )
+        if (revealCorrect) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("\u2713", color = accent, fontWeight = FontWeight.Bold)
+            }
+        } else if (isMine) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.85f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "\u25CB",
+                    color = accent,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Multiple-choice gameplay. Each tile toggles inclusion until the
+ * user taps Submit; once submitted, all tiles lock and the reveal
+ * highlights every correct choice + flags the user's misses /
+ * extra picks.
+ */
+@Composable
+private fun MultipleChoiceBody(
+    question: TriviaQuestion,
+    choices: List<TriviaChoice>,
+    live: Boolean,
+    canAnswer: Boolean,
+    myAnswer: TriviaAnswer?,
+    revealing: Boolean,
+    timeUp: Boolean,
+    correctChoiceIds: Set<String>,
+    onSubmit: (List<String>) -> Unit,
+) {
+    // Local pre-submit selection. Resets every time the question
+    // changes (key includes question.id).
+    val selected = remember(question.id) { mutableStateListOf<String>() }
+    val submittedIds = remember(myAnswer) {
+        myAnswer?.choiceIds?.toSet() ?: emptySet()
+    }
+    val locked = !live || !canAnswer || myAnswer != null || timeUp
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (live && canAnswer && myAnswer == null && !timeUp) {
+            Text(
+                stringResource(Res.string.trivia_multiple_hint),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        choices.forEachIndexed { idx, choice ->
+            val isLocallySelected = choice.id in selected
+            val isInSubmitted = choice.id in submittedIds
+            val isMine = isInSubmitted || (myAnswer == null && isLocallySelected)
+            val showCorrect = live && revealing && choice.id in correctChoiceIds
+            val showIncorrectMine = live && revealing && isInSubmitted && choice.id !in correctChoiceIds
+            ChoiceButton(
+                index = idx,
+                label = choice.label,
+                locked = locked,
+                isMine = isMine,
+                revealCorrect = showCorrect,
+                revealMineWrong = showIncorrectMine,
+                onClick = {
+                    if (locked) return@ChoiceButton
+                    if (choice.id in selected) selected.remove(choice.id) else selected.add(choice.id)
+                },
+            )
+        }
+        // Submit row: visible only while the user can still pick.
+        if (live && canAnswer && myAnswer == null && !timeUp) {
+            val count = selected.size
+            Button(
+                onClick = { onSubmit(selected.toList()) },
+                enabled = count > 0,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    if (count == 0) {
+                        stringResource(Res.string.trivia_multiple_submit_empty)
+                    } else {
+                        stringResource(Res.string.trivia_multiple_submit, count)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Numeric gameplay. A single text field accepting decimals + a
+ * Submit button. On reveal we swap the editor for a static
+ * "Correct: X" pill so spectators learn the answer too.
+ */
+@Composable
+private fun NumericBody(
+    question: TriviaQuestion,
+    live: Boolean,
+    canAnswer: Boolean,
+    myAnswer: TriviaAnswer?,
+    revealing: Boolean,
+    timeUp: Boolean,
+    onSubmit: (Double) -> Unit,
+) {
+    var raw by remember(question.id) { mutableStateOf("") }
+    val locked = !live || !canAnswer || myAnswer != null || timeUp
+    val expected = question.expectedNumber
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (revealing && expected != null) {
+            // Reveal: surface the canonical correct value to everyone
+            // (including spectators).
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.tertiaryContainer)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "${stringResource(Res.string.trivia_numeric_expected)}: ${formatNumeric(expected)}",
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+        if (myAnswer != null) {
+            // Show the user the value they submitted (echoed from
+            // the realtime feed).
+            val submittedText = myAnswer.numericValue?.let { formatNumeric(it) } ?: "—"
+            val correct = myAnswer.isCorrect
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        if (correct) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.errorContainer,
+                    )
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            ) {
+                Text(
+                    text = submittedText,
+                    color = if (correct) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onErrorContainer,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        } else if (!locked) {
+            OutlinedTextField(
+                value = raw,
+                onValueChange = { raw = it.filterDecimalInput() },
+                label = { Text(stringResource(Res.string.trivia_numeric_input_hint)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = {
+                    val value = raw.toDoubleOrNull() ?: return@Button
+                    onSubmit(value)
+                },
+                enabled = raw.toDoubleOrNull() != null,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(Res.string.trivia_numeric_submit))
+            }
+        } else if (!revealing) {
+            // Time's up but no answer: leave a placeholder so the
+            // body height stays roughly stable across phases.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "—",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.titleLarge,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Same input filter the host editor uses, lifted to file scope so
+ * gameplay typing rejects letters / multiple decimal separators
+ * without us re-implementing it. Accepts both `.` and `,` (locales).
+ */
+private fun String.filterDecimalInput(): String {
+    val sb = StringBuilder()
+    var seenDot = false
+    for ((idx, c) in withIndex()) {
+        when {
+            c.isDigit() -> sb.append(c)
+            (c == '.' || c == ',') && !seenDot -> {
+                sb.append('.')
+                seenDot = true
+            }
+            c == '-' && idx == 0 && sb.isEmpty() -> sb.append('-')
+            else -> Unit
+        }
+    }
+    return sb.toString()
+}

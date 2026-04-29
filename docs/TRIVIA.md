@@ -3,17 +3,20 @@
 > The first feature that turns a meetup room into a real-time **game**.
 > Read this in full before touching anything in `trivia/`,
 > `ui/room/tabs/TriviaTab.kt`, or
-> `supabase/migrations/007_trivia.sql`.
+> `supabase/migrations/007_trivia.sql` /
+> `supabase/migrations/009_trivia_question_types.sql`.
 
 A meetup can host **many trivias coexisting** as cards in the tab.
 Each trivia is owned by the meetup host: they create a quiz, configure
-N multiple-choice questions, open the lobby for participants to join
-(or bulk-enroll the room with one tap), then start the round. Every
-connected device runs a synchronized countdown for each question;
-**only enrolled clients can submit answers** — non-enrolled devices
-stay in spectator mode for the duration. After the last question every
-device runs a 10 s suspense animation before the leaderboard is
-revealed (top 3 podium with confetti, then the rest).
+N questions of any of the **four supported types** (single-choice,
+true/false, multiple-choice, numeric — see
+[Question types](#question-types)), open the lobby for participants
+to join (or bulk-enroll the room with one tap), then start the round.
+Every connected device runs a synchronized countdown for each
+question; **only enrolled clients can submit answers** — non-enrolled
+devices stay in spectator mode for the duration. After the last
+question every device runs a 10 s suspense animation before the
+leaderboard is revealed (top 3 podium with confetti, then the rest).
 
 This document explains:
 
@@ -135,8 +138,8 @@ view inherits SELECT via a separate `grant`.
 | Table / View | Role | Key constraint |
 |---|---|---|
 | `trivia_quizzes` | Quiz metadata + lifecycle pointers | — |
-| `trivia_questions` | Per-question prompt + per-Q timer override | `UNIQUE (quiz_id, position)` |
-| `trivia_choices` | 4 colored options per question | `UNIQUE (question_id, position)` |
+| `trivia_questions` | Per-question prompt + per-Q timer override + type fields | `UNIQUE (quiz_id, position)` |
+| `trivia_choices` | Colored options per question (4 single/multi, 2 boolean, 0 numeric) | `UNIQUE (question_id, position)` |
 | `trivia_entries` | Opt-in roster (who can play) | `UNIQUE (quiz_id, participant_id)` ← idempotent enroll |
 | `trivia_answers` | One row per (device, question) | `UNIQUE (question_id, client_id)` ← idempotent retry |
 | `trivia_leaderboard` (view) | Aggregate `(quiz, client)` joined to `app_users` | — |
@@ -190,16 +193,21 @@ create table public.trivia_answers (
     question_id     uuid not null references public.trivia_questions(id) on delete cascade,
     participant_id  uuid not null references public.meetup_participants(id) on delete cascade,
     client_id       text not null,                                          -- joins to app_users
-    choice_id       uuid not null references public.trivia_choices(id) on delete cascade,
-    is_correct      boolean not null default false,                         -- filled by trigger
-    response_ms     int    not null default 0,                              -- filled by trigger
-    points_awarded  int    not null default 0,                              -- filled by trigger
+    choice_id       uuid references public.trivia_choices(id) on delete cascade,   -- single / boolean
+    choice_ids      uuid[],                                                  -- multiple
+    numeric_value   numeric,                                                 -- numeric
+    is_correct      boolean not null default false,                          -- filled by trigger
+    response_ms     int    not null default 0,                               -- filled by trigger
+    points_awarded  int    not null default 0,                               -- filled by trigger
     answered_at     timestamptz not null default now(),
     unique(question_id, client_id)
 );
 ```
 
-The client only sends `(quiz_id, question_id, participant_id, client_id, choice_id)`. The trigger fills the rest.
+Exactly one of `choice_id` / `choice_ids` / `numeric_value` is
+populated per row, gated by the question's `question_type`. The client
+sends just that and the participant ids; the trigger fills `is_correct`,
+`response_ms`, and `points_awarded`.
 
 ### `trivia_leaderboard` view
 
@@ -224,12 +232,36 @@ The client-side sort is `total_points DESC, avg_response_ms ASC, display_name AS
 
 `trivia_compute_answer_score` is a `BEFORE INSERT` trigger on `trivia_answers`. It owns:
 
-1. **Correctness lookup** — reads `trivia_choices.is_correct` for the chosen `choice_id`.
+1. **Correctness lookup, per type** — reads from one of three places depending on `trivia_questions.question_type`:
+   - `single` / `boolean` — looks up `trivia_choices.is_correct` for the submitted `choice_id`.
+   - `multiple` — builds the canonical correct-set (every choice with `is_correct=true`) and compares it against the submitted `choice_ids` array. **All-or-nothing**: missing or extra picks score zero.
+   - `numeric` — `abs(numeric_value - expected_number) <= numeric_tolerance`.
 2. **Elapsed-time computation** — `now() - current_question_started_at`, clamped to the question window.
 3. **Late-insert guard** — if `q.position ≠ tq.current_question_index` (the host already moved on), elapsed_ms is set to the full window so the score caps at 500 (correct) or 0 (wrong). Prevents a network race from gifting +1 000 pts.
-4. **Score formula** — Kahoot-style: `500 + 500 * (1 - elapsed_ms / total_ms)` for correct, 0 for wrong.
+4. **Score formula** — Kahoot-style: `500 + 500 * (1 - elapsed_ms / total_ms)` for correct, 0 for wrong. Same formula for every question type.
 
 Because the trigger is the **only** place these values are written, a malicious client sending `points_awarded: 999999` is simply ignored — the `BEFORE INSERT` overwrites the field before the row is committed.
+
+[`TriviaScoring`](../composeApp/src/commonMain/kotlin/com/xergioalex/kmppttdynamics/trivia/TriviaScoring.kt) is a pure-Kotlin mirror used by tests (`TriviaScoringTest`). Both implementations must agree — a parity drift would only show up at the leaderboard, which is too late.
+
+## Question types
+
+The four supported types live in
+[`TriviaQuestionType`](../composeApp/src/commonMain/kotlin/com/xergioalex/kmppttdynamics/trivia/TriviaModels.kt)
+and serialize to lowercase strings (`single` / `boolean` / `multiple` / `numeric`). The host picks the type from a 4-card chooser before the question editor opens; the editor then surfaces only the fields that type needs.
+
+| Type | Editor surface | Player surface | Server columns |
+|---|---|---|---|
+| `single` (default) | 4 text fields + radio for the single correct choice | 4 colored Kahoot tiles, lock on tap | `choice_id` |
+| `boolean` | Big True / False radios — labels are pre-baked | 2 oversize tiles (✓ green, ✗ red) | `choice_id` (2 pre-seeded choices, position 0=True / 1=False) |
+| `multiple` | 4 text fields + checkbox per correct option (≥ 1) | 4 toggle-able tiles + Submit button (locks on submit) | `choice_ids uuid[]` |
+| `numeric` | Expected answer field + ± tolerance field (≥ 0) | Decimal text input + Submit button | `numeric_value`, `expected_number`, `numeric_tolerance` on the question row |
+
+Boolean stores its choices in `trivia_choices` exactly like a 2-option single-choice question — the `is_correct` flag plus a stable position 0/1 convention is all the trigger needs. The gameplay UI ignores the stored labels (which are always English `"True"` / `"False"`) and renders localized text via `stringResource(...)`.
+
+For multiple-choice, the trigger sorts the submitted array and the canonical correct set before comparing, so `[a, b]` and `[b, a]` are the same answer. There's no partial credit by design — half-right is wrong.
+
+For numeric, both the expected value and the tolerance live on `trivia_questions` (not on choices). A null `expected_number` makes every submission wrong, surfacing a malformed question instead of silently scoring everyone correct.
 
 ## Real-time channels
 
@@ -420,6 +452,8 @@ The 4-color palette is **intentionally hardcoded** in `TriviaPalette` — these 
 | Palette + animation timing | `composeApp/.../ui/room/tabs/trivia/TriviaTheme.kt` |
 | Schema + scoring trigger + view | `supabase/migrations/007_trivia.sql` |
 | Entries (opt-in roster) | `supabase/migrations/008_trivia_entries.sql` |
+| Question types + per-type trigger branches | `supabase/migrations/009_trivia_question_types.sql` |
+| Pure Kotlin scoring mirror (used by tests) | `composeApp/.../trivia/TriviaScoring.kt` + `commonTest/.../TriviaScoringTest.kt` |
 | AppContainer wiring | `composeApp/.../AppContainer.kt` (search `trivia`) |
 | RoomTab enum + tab strip | `composeApp/.../ui/room/RoomScreen.kt` (search `RoomTab.TRIVIA`) |
 | i18n strings | `composeResources/values/strings.xml` + `values-es/strings.xml` (search `trivia_`) |
@@ -431,4 +465,6 @@ Not in scope for the current implementation; tracked in [App Overview](APP_OVERV
 - **Question media** (images / audio) — the `trivia_questions` schema can grow a `media_url` column without breaking the trigger or view.
 - **Pre-saved quiz library** — the data model already supports multiple quizzes per meetup; a "duplicate quiz" action would be ~10 lines.
 - **Auto-advance on host disconnect** — move the advance into a Postgres `pg_cron` or Edge Function so a missing host doesn't hang the round. Today it just waits for them to come back.
-- **Multi-correct questions** — the schema doesn't enforce one-correct, only the UI does. A flag on `trivia_questions` plus a tweak to the scoring trigger would unlock this.
+- **Partial credit for multiple-choice** — currently all-or-nothing; adding a "fraction of correct picks" score path is a per-type tweak in the trigger.
+- **Numeric tolerance as percent** — today it's an absolute ±. A flag on `trivia_questions` could let the host opt into "± 5 % of expected" instead.
+- **Range / open-ended question types** — the type enum is open for `range` (min..max) and `text` (exact-match) variants whenever a meetup needs them.

@@ -27,6 +27,33 @@ enum class TriviaStatus {
     val isLive: Boolean get() = this == IN_PROGRESS || this == CALCULATING
 }
 
+/**
+ * The four question kinds the host can author. Each has a different
+ * editor variant on [com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.HostSetupScreen]
+ * and a different gameplay variant on
+ * [com.xergioalex.kmppttdynamics.ui.room.tabs.trivia.QuestionScreen].
+ *
+ * Server-side correctness checking lives in the
+ * `trivia_compute_answer_score` Postgres trigger:
+ *
+ *  - [SINGLE], [BOOLEAN] — read `choice_id` and look up
+ *    `trivia_choices.is_correct`. Boolean rides the same plumbing
+ *    as single-choice but with exactly two pre-baked choices
+ *    ("True", "False"); the only difference is UI presentation.
+ *  - [MULTIPLE] — compare the submitted `choice_ids uuid[]` set to
+ *    the set of `is_correct=true` choices. All-or-nothing: missing
+ *    or extra picks = wrong.
+ *  - [NUMERIC] — compare `numeric_value` against the question's
+ *    `expected_number` with `numeric_tolerance`.
+ */
+@Serializable
+enum class TriviaQuestionType {
+    @SerialName("single") SINGLE,
+    @SerialName("boolean") BOOLEAN,
+    @SerialName("multiple") MULTIPLE,
+    @SerialName("numeric") NUMERIC,
+}
+
 @Serializable
 data class TriviaQuiz(
     val id: String,
@@ -82,6 +109,22 @@ data class TriviaQuestion(
     val position: Int,
     val prompt: String,
     @SerialName("seconds_to_answer") val secondsToAnswer: Int = 15,
+    /**
+     * What kind of question this is. Defaults to [TriviaQuestionType.SINGLE]
+     * so legacy rows authored before migration 009 keep behaving like
+     * the original Kahoot-style single-choice card.
+     */
+    @SerialName("question_type") val type: TriviaQuestionType = TriviaQuestionType.SINGLE,
+    /**
+     * Only populated for [TriviaQuestionType.NUMERIC]. The "correct"
+     * value the client must match within [numericTolerance].
+     */
+    @SerialName("expected_number") val expectedNumber: Double? = null,
+    /**
+     * Only meaningful for [TriviaQuestionType.NUMERIC]. Allowed
+     * deviation from [expectedNumber]. Defaults to 0 (exact match).
+     */
+    @SerialName("numeric_tolerance") val numericTolerance: Double = 0.0,
     @SerialName("created_at") val createdAt: Instant,
 )
 
@@ -93,6 +136,11 @@ data class TriviaQuestionDraft(
     val prompt: String,
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @SerialName("seconds_to_answer") val secondsToAnswer: Int = 15,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @SerialName("question_type") val type: TriviaQuestionType = TriviaQuestionType.SINGLE,
+    @SerialName("expected_number") val expectedNumber: Double? = null,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @SerialName("numeric_tolerance") val numericTolerance: Double = 0.0,
 )
 
 @Serializable
@@ -119,7 +167,8 @@ data class TriviaChoiceDraft(
  * One participant's answer to one question. Server-side fields
  * (`isCorrect`, `responseMs`, `pointsAwarded`) are populated by the
  * `trivia_answers_compute_score` BEFORE INSERT trigger; the client
- * only sends the four-tuple `(quiz, question, choice, participant)`.
+ * sends exactly one of [choiceId] / [choiceIds] / [numericValue]
+ * depending on the question's [TriviaQuestionType].
  */
 @Serializable
 data class TriviaAnswer(
@@ -128,20 +177,37 @@ data class TriviaAnswer(
     @SerialName("question_id") val questionId: String,
     @SerialName("participant_id") val participantId: String,
     @SerialName("client_id") val clientId: String,
-    @SerialName("choice_id") val choiceId: String,
+    /** Single / boolean: the chosen choice id. Null otherwise. */
+    @SerialName("choice_id") val choiceId: String? = null,
+    /** Multiple-choice: every chosen choice id. Null otherwise. */
+    @SerialName("choice_ids") val choiceIds: List<String>? = null,
+    /** Numeric: the value the user typed. Null otherwise. */
+    @SerialName("numeric_value") val numericValue: Double? = null,
     @SerialName("is_correct") val isCorrect: Boolean = false,
     @SerialName("response_ms") val responseMs: Int = 0,
     @SerialName("points_awarded") val pointsAwarded: Int = 0,
     @SerialName("answered_at") val answeredAt: Instant,
 )
 
+/**
+ * Insert payload for an answer. Use the matching constructor variant
+ * via the helpers on [com.xergioalex.kmppttdynamics.trivia.TriviaRepository].
+ *
+ * `explicit_nulls = false` on the JSON instance drops the unused two
+ * columns out of the wire payload, so a single-choice answer doesn't
+ * accidentally clear `numeric_value` on a row where someone else
+ * already typed it (in practice impossible because `(question_id,
+ * client_id)` is UNIQUE — but the smaller payload is also nicer).
+ */
 @Serializable
 data class TriviaAnswerDraft(
     @SerialName("quiz_id") val quizId: String,
     @SerialName("question_id") val questionId: String,
     @SerialName("participant_id") val participantId: String,
     @SerialName("client_id") val clientId: String,
-    @SerialName("choice_id") val choiceId: String,
+    @SerialName("choice_id") val choiceId: String? = null,
+    @SerialName("choice_ids") val choiceIds: List<String>? = null,
+    @SerialName("numeric_value") val numericValue: Double? = null,
 )
 
 /**
