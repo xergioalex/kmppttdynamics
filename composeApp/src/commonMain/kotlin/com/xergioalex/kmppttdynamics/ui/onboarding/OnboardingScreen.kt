@@ -1,6 +1,7 @@
 package com.xergioalex.kmppttdynamics.ui.onboarding
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
@@ -210,6 +212,9 @@ private fun AvatarPickerView(
     onClose: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize().padding(top = 16.dp)) {
+        // Sticky header with the back arrow, title, AND a thumbnail of
+        // the currently-selected avatar so the user keeps a reference
+        // point while scrolling through the 132-tile grid.
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -217,7 +222,23 @@ private fun AvatarPickerView(
             IconButton(onClick = onClose) {
                 Text("‹", style = MaterialTheme.typography.headlineSmall)
             }
-            Spacer(Modifier.size(4.dp))
+            // Selected-avatar preview: ringed in primary, same look as
+            // a selected tile so the visual language is consistent.
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .border(
+                        width = 3.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = CircleShape,
+                    )
+                    .padding(3.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                AvatarImage(avatarId = selected, size = 42.dp)
+            }
+            Spacer(Modifier.size(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     stringResource(Res.string.onboarding_picker_title),
@@ -266,11 +287,11 @@ private fun AvatarTile(
     takenByName: String?,
     onClick: () -> Unit,
 ) {
-    val ringColor = when {
-        isSelected -> MaterialTheme.colorScheme.primary
-        isTaken -> Color.Transparent
-        else -> Color.Transparent
-    }
+    val primary = MaterialTheme.colorScheme.primary
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
+    val surface = MaterialTheme.colorScheme.surface
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -278,30 +299,76 @@ private fun AvatarTile(
             .padding(2.dp),
     ) {
         Box(
+            // Selected tile gets a slight scale-up so it visually pops
+            // out of the grid even at-a-glance while scrolling.
             modifier = Modifier
-                .size(80.dp)
-                .clip(CircleShape)
-                .background(ringColor)
-                .padding(if (isSelected) 3.dp else 0.dp),
+                .size(86.dp)
+                .graphicsLayer {
+                    if (isSelected) {
+                        scaleX = 1.05f
+                        scaleY = 1.05f
+                    }
+                },
             contentAlignment = Alignment.Center,
         ) {
-            Box(modifier = Modifier.alpha(if (isTaken) 0.35f else 1f)) {
-                AvatarImage(
-                    avatarId = id,
-                    size = 76.dp,
-                )
+            // Outer ring + inner ring sandwich: a thick primary ring on
+            // the outside with a thin surface-colored ring inside, so
+            // the selection reads cleanly on both light and dark
+            // surfaces and against the avatar's own border. The fill
+            // behind the avatar uses primaryContainer so even tiles
+            // that are mostly cool-toned (water creature, etc.) get
+            // a warm halo that matches the room's accent color.
+            Box(
+                modifier = Modifier
+                    .size(86.dp)
+                    .clip(CircleShape)
+                    .background(if (isSelected) primaryContainer else Color.Transparent)
+                    .then(
+                        if (isSelected) {
+                            Modifier
+                                .border(width = 4.dp, color = primary, shape = CircleShape)
+                                .padding(4.dp)
+                                .border(width = 2.dp, color = surface, shape = CircleShape)
+                                .padding(2.dp)
+                        } else {
+                            Modifier.padding(3.dp)
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(modifier = Modifier.alpha(if (isTaken) 0.35f else 1f)) {
+                    AvatarImage(avatarId = id, size = 76.dp)
+                }
+                if (isTaken) {
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("🔒", style = MaterialTheme.typography.titleLarge)
+                    }
+                }
             }
-            if (isTaken) {
+            // Floating checkmark badge in the bottom-right corner of
+            // the selected tile. Sits on top of the rings so it stays
+            // legible regardless of the underlying avatar art.
+            if (isSelected) {
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(28.dp)
+                        .align(Alignment.BottomEnd)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f)),
+                        .background(primary)
+                        .border(2.dp, surface, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "🔒",
-                        style = MaterialTheme.typography.titleLarge,
+                        "✓",
+                        color = onPrimary,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                     )
                 }
             }
