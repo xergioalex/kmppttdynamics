@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -312,44 +315,97 @@ private fun RaffleCard(
             }
 
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (raffle.status.acceptsEntries) {
-                    if (iAmIn) {
-                        Text(
-                            stringResource(Res.string.raffles_entered),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.secondary,
-                        )
-                    } else {
-                        Button(onClick = onEnter, enabled = !isWorking) {
-                            Text(stringResource(Res.string.raffles_enter))
-                        }
-                    }
+            // FlowRow (instead of Row) so the action buttons wrap to a
+            // second line when there are three or more — the previous
+            // Row let "Draw winner" collapse into a vertical letter-
+            // per-line column on narrow screens (Open status with both
+            // host actions visible).
+            RaffleActions(
+                isHost = isHost,
+                iAmIn = iAmIn,
+                isWorking = isWorking,
+                status = raffle.status,
+                hasEntries = entries.isNotEmpty(),
+                onEnter = onEnter,
+                onEnrollAll = onEnrollAll,
+                onDraw = onDraw,
+                onClose = onClose,
+                onRelaunch = onRelaunch,
+            )
+        }
+    }
+}
+
+/**
+ * Action row at the bottom of a [RaffleCard]. Uses [FlowRow] so the
+ * three-button case (`Open` status with both host actions visible) on
+ * a narrow screen wraps the third button to the next line instead of
+ * letting Material 3 squeeze it into a vertical letter-per-line column.
+ *
+ * The "you're in" label is rendered as a small chip and aligned with
+ * the buttons so wrapping behaves naturally regardless of which
+ * combination of states is showing.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RaffleActions(
+    isHost: Boolean,
+    iAmIn: Boolean,
+    isWorking: Boolean,
+    status: RaffleStatus,
+    hasEntries: Boolean,
+    onEnter: () -> Unit,
+    onEnrollAll: () -> Unit,
+    onDraw: () -> Unit,
+    onClose: () -> Unit,
+    onRelaunch: () -> Unit,
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (status.acceptsEntries) {
+            if (iAmIn) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        stringResource(Res.string.raffles_entered),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
                 }
-                if (isHost) {
-                    if (raffle.status == RaffleStatus.OPEN) {
-                        OutlinedButton(onClick = onEnrollAll, enabled = !isWorking) {
-                            Text(stringResource(Res.string.raffles_enroll_all))
-                        }
-                        OutlinedButton(
-                            onClick = onDraw,
-                            enabled = !isWorking && entries.isNotEmpty(),
-                        ) {
-                            Text(stringResource(Res.string.raffles_draw_winner))
-                        }
-                    }
-                    if (raffle.status == RaffleStatus.DRAWN) {
-                        OutlinedButton(onClick = onClose, enabled = !isWorking) {
-                            Text(stringResource(Res.string.raffles_close))
-                        }
-                    }
-                    if (raffle.status == RaffleStatus.DRAWN ||
-                        raffle.status == RaffleStatus.CLOSED
-                    ) {
-                        OutlinedButton(onClick = onRelaunch, enabled = !isWorking) {
-                            Text(stringResource(Res.string.raffles_relaunch))
-                        }
-                    }
+            } else {
+                Button(onClick = onEnter, enabled = !isWorking) {
+                    Text(stringResource(Res.string.raffles_enter))
+                }
+            }
+        }
+        if (isHost) {
+            if (status == RaffleStatus.OPEN) {
+                OutlinedButton(onClick = onEnrollAll, enabled = !isWorking) {
+                    Text(stringResource(Res.string.raffles_enroll_all))
+                }
+                OutlinedButton(
+                    onClick = onDraw,
+                    enabled = !isWorking && hasEntries,
+                ) {
+                    Text(stringResource(Res.string.raffles_draw_winner))
+                }
+            }
+            if (status == RaffleStatus.DRAWN) {
+                OutlinedButton(onClick = onClose, enabled = !isWorking) {
+                    Text(stringResource(Res.string.raffles_close))
+                }
+            }
+            if (status == RaffleStatus.DRAWN || status == RaffleStatus.CLOSED) {
+                OutlinedButton(onClick = onRelaunch, enabled = !isWorking) {
+                    Text(stringResource(Res.string.raffles_relaunch))
                 }
             }
         }
