@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -346,31 +348,48 @@ private fun WinnerReveal(name: String, avatarId: Int?) {
 
 /**
  * Stacked avatar bubbles — Discord-style "who's in the room" preview.
- * Shows up to 5 avatars overlapping, plus a `+N` chip if there are
- * more. Avatars are rendered in reverse order so the leftmost one
- * appears on top.
+ * Shows up to 6 avatars overlapping, plus a `+N` chip if there are
+ * more.
+ *
+ * Implemented as a fixed-size [Box] with each tile placed via
+ * `Modifier.offset(x = step * index)`. We can't use negative
+ * `Modifier.padding(...)` for the overlap because Compose enforces
+ * non-negative padding at construction time and crashes the whole
+ * composition with `IllegalArgumentException: Padding must be
+ * non-negative` — that was the bug that took the raffles tab down.
+ *
+ * The Box's width is computed explicitly (`ringSize + step * (n - 1)`)
+ * because `offset` is a placement-only modifier — Compose's measure
+ * pass doesn't expand the parent to fit offset children, so without an
+ * explicit width the rightmost avatars would be clipped.
  */
 @Composable
 private fun EntryAvatarStack(avatarIds: List<Int>, extra: Int) {
     if (avatarIds.isEmpty() && extra == 0) return
-    val overlap = (-12).dp
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    val avatarSize = 28.dp
+    val ringSize = 32.dp                // 28 dp avatar + 2 dp white ring on each side
+    val step = 22.dp                    // 10 dp overlap between adjacent rings
+    val tileCount = avatarIds.size + (if (extra > 0) 1 else 0)
+    val totalWidth = ringSize + step * (tileCount - 1).coerceAtLeast(0)
+
+    Box(modifier = Modifier.height(ringSize).width(totalWidth)) {
         avatarIds.forEachIndexed { index, id ->
             Box(
                 modifier = Modifier
-                    .padding(start = if (index == 0) 0.dp else overlap)
+                    .offset(x = step * index)
+                    .size(ringSize)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surface)
                     .padding(2.dp),
             ) {
-                AvatarImage(avatarId = id, size = 28.dp)
+                AvatarImage(avatarId = id, size = avatarSize)
             }
         }
         if (extra > 0) {
             Box(
                 modifier = Modifier
-                    .padding(start = overlap)
-                    .size(32.dp)
+                    .offset(x = step * avatarIds.size)
+                    .size(ringSize)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.secondaryContainer),
                 contentAlignment = Alignment.Center,
