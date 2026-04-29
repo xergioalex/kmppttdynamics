@@ -68,7 +68,10 @@ Or use the **IDE's KMP run config** (Android Studio with the KMP plugin, or Flee
 ```bash
 ./gradlew :composeApp:wasmJsBrowserDevelopmentRun       # Dev server with HMR
 ./gradlew :composeApp:wasmJsBrowserDistribution         # Production bundle to composeApp/build/dist/wasmJs/productionExecutable
+bash scripts/build_web.sh                                # Same as above + clean previous output + deploy hints (used as the Cloudflare Pages build command)
 ```
+
+The output dir is fully self-contained for static hosting — `_headers` and `_redirects` (Cloudflare Pages / Netlify format) are bundled in. See [Build & Deploy → Web](BUILD_DEPLOY.md#web) for the full deploy walkthrough.
 
 ### Web (JS — fallback for older browsers)
 

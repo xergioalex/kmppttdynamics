@@ -317,6 +317,7 @@ Edit any composable in `commonMain` or `jvmMain` — the running window picks up
 ./gradlew :composeApp:assembleRelease                    # Android release APK
 ./gradlew :composeApp:packageDistributionForCurrentOS    # Desktop installer (Dmg/Msi/Deb)
 ./gradlew :composeApp:wasmJsBrowserDistribution          # Production web bundle
+bash scripts/build_web.sh                                # Same as above + clean + Cloudflare Pages deploy hints
 
 # Supabase
 ./scripts/supabase_apply.sh                              # Apply SQL migrations

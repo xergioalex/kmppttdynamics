@@ -1,0 +1,14 @@
+# Cloudflare Pages — URL rewrites and redirects.
+# Reference: https://developers.cloudflare.com/pages/configuration/redirects/
+#
+# Single rule for now: SPA fallback. Compose Multiplatform's
+# in-memory routing doesn't push URL changes today, so any deep link
+# (or refresh on a non-root path) needs to land on `index.html` and
+# let the in-app router decide what to render. CF Pages parses this
+# top-down and `/* /index.html 200` is the catch-all.
+#
+# Status code 200 (not 301/302) so the URL stays untouched in the
+# address bar and the browser doesn't see a redirect — important if
+# we ever wire deep-link handling that reads `window.location` from
+# the Kotlin side.
+/*    /index.html   200

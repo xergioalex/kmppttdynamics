@@ -2,22 +2,51 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- FORK-RENAME: page title is user-visible in the browser tab.
-         If you host under a subpath, also set <base href="/your-path/">.
-         See docs/FORK_CUSTOMIZATION.md. -->
-    <title>KMP Todo App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#7B61FF">
+    <meta name="description" content="Pereira Tech Talks Dynamics — realtime meetup engagement: chat, Q&amp;A, polls, raffles, Kahoot-style trivia. Built with Kotlin Multiplatform + Compose Multiplatform.">
+
+    <!-- Open Graph / share preview -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Pereira Tech Talks Dynamics">
+    <meta property="og:description" content="Live meetup dynamics — chat, Q&amp;A, polls, raffles, trivia. Realtime via Supabase.">
+    <meta property="og:image" content="ptt_logo_horizontal.png">
+
+    <title>Pereira Tech Talks Dynamics</title>
+
+    <!-- Inline SVG favicon (no extra HTTP request).
+         Purple hex matches `theme-color` so installed PWAs / browser
+         chrome stays consistent with the in-app primary tone. -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%237B61FF'/%3E%3Ctext x='50' y='66' font-size='52' text-anchor='middle' font-family='ui-sans-serif,system-ui,sans-serif' font-weight='800' fill='white'%3EP%3C/text%3E%3C/svg%3E">
+
     <link type="text/css" rel="stylesheet" href="styles.css">
 </head>
-<body style="text-align: center; align-content: center">
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 50 50" role="presentation">
-    <circle cx="25" cy="25" r="20" stroke="#ccc" stroke-width="4" fill="none"/>
-    <circle cx="25" cy="25" r="20" stroke="#333" stroke-width="4" fill="none" stroke-linecap="round"
-            stroke-dasharray="90 125">
-        <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s"
-                          repeatCount="indefinite"/>
-    </circle>
-</svg>
+<body>
+<!--
+    Boot screen shown until Compose mounts. Compose Multiplatform Wasm
+    has a non-trivial cold-start cost (~5 MB of Wasm + ~8 MB of skiko
+    decode + JIT compile) so a branded loader is non-optional UX —
+    blank-page-for-3-seconds reads as "this site is broken".
+
+    When the Compose runtime boots and ComposeViewport appends its
+    canvas to <body>, this loader gets pushed up; we don't bother
+    removing it because the canvas covers it edge-to-edge anyway.
+-->
+<div id="boot">
+    <div class="boot-mark">P</div>
+    <div class="boot-title">PTT Dynamics</div>
+    <div class="boot-spinner" role="presentation">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 50 50">
+            <circle cx="25" cy="25" r="20" stroke="rgba(255,255,255,0.25)" stroke-width="4" fill="none"/>
+            <circle cx="25" cy="25" r="20" stroke="white" stroke-width="4" fill="none" stroke-linecap="round"
+                    stroke-dasharray="90 125">
+                <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s"
+                                  repeatCount="indefinite"/>
+            </circle>
+        </svg>
+    </div>
+</div>
+
 <script type="application/javascript" src="composeApp.js"></script>
 </body>
 </html>

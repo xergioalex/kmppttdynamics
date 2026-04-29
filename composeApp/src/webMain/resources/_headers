@@ -1,0 +1,51 @@
+# Cloudflare Pages — HTTP response headers per route.
+# Format: each route block starts at column 0; header lines are
+# indented with two spaces. Reference:
+#   https://developers.cloudflare.com/pages/configuration/headers/
+#
+# Cache strategy: webpack content-hashes everything that's allowed to
+# be cached forever (the .wasm / chunk / source-map files), so we mark
+# those `immutable`. The non-hashed entry points (`composeApp.js`,
+# `index.html`) get short caches with revalidation so a fresh deploy
+# is picked up on the next page load instead of waiting for a stale
+# CDN edge to expire.
+#
+# Cloudflare auto-detects MIME types and applies Brotli/Gzip on
+# eligible responses, so no Content-Type / Content-Encoding rules are
+# needed here.
+
+# Hashed Wasm binaries — content-addressed, never change for a given
+# hash, so a year of cache + immutable is correct.
+/*.wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+# Hashed JS chunks emitted by webpack (everything that isn't the
+# entry composeApp.js).
+/kotlin/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Compose Multiplatform resources — strings.xml, drawables, the 132
+# avatar PNGs. The path is content-stable per build but not per
+# bundled file; the same cache rule still applies because changing
+# any resource invalidates the bundle hash that references it.
+/composeResources/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Source maps (production builds emit them so console errors are
+# debuggable). Same content-hash rule as the .wasm files.
+/*.js.map
+  Cache-Control: public, max-age=31536000, immutable
+
+# Entry script — webpack does NOT hash this filename because index.html
+# references it by name. Short cache + revalidation so a deploy that
+# changes the chunk graph is picked up promptly.
+/composeApp.js
+  Cache-Control: public, max-age=300, must-revalidate
+
+# index.html: never cache. Must always reflect the latest deploy so
+# the freshly-hashed asset URLs in the chunk graph are loaded.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate

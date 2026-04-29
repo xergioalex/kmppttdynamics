@@ -4,4 +4,56 @@ html, body {
     margin: 0;
     padding: 0;
     overflow: hidden;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #ffffff;
+    color: #111111;
+}
+
+@media (prefers-color-scheme: dark) {
+    html, body {
+        background: #0F0F1A;
+        color: #f1f1f1;
+    }
+}
+
+/* Boot screen — visible only until Compose mounts and overlays it
+   with its own <canvas>. Branded purple matches the M3 primary token
+   used by the in-app theme so the transition feels seamless. */
+#boot {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    background: linear-gradient(180deg, #7B61FF 0%, #5B45D8 100%);
+    color: #ffffff;
+    z-index: 1;
+}
+
+#boot .boot-mark {
+    width: 96px;
+    height: 96px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+#boot .boot-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    opacity: 0.95;
+}
+
+#boot .boot-spinner {
+    margin-top: 4px;
 }

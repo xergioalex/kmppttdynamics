@@ -194,28 +194,91 @@ Bump `packageVersion` in `compose.desktop.application.nativeDistributions { ... 
 
 ## Web
 
+The web target compiles to a fully-static bundle: HTML + CSS + JS + Wasm + bundled resources, no server runtime required. Deploy to any static host (Cloudflare Pages, Netlify, Vercel, GitHub Pages, S3 + CloudFront, plain nginx).
+
 ### Wasm production bundle
 
 ```bash
+./scripts/build_web.sh
+# or, equivalently
 ./gradlew :composeApp:wasmJsBrowserDistribution
 # Output: composeApp/build/dist/wasmJs/productionExecutable/
 ```
 
-Static hosting works on Cloudflare Pages, Netlify, Vercel, GitHub Pages, S3 + CloudFront. Configuration:
+`build_web.sh` is the recommended entry point: it cleans the previous output (so stale hashed chunks don't sneak in), runs the Gradle task, prints the contents and total size, and surfaces the Cloudflare Pages config you need on the dashboard.
 
-- **Caching:** all assets except `index.html` are content-hashed — set far-future cache headers on JS / Wasm / CSS, no-cache on `index.html`
-- **Compression:** make sure your CDN serves Brotli or gzip; Wasm files compress well
-- **Base href:** if hosting under a subpath (e.g., `https://example.com/app/`), edit `webMain/resources/index.html` to set `<base href="/app/">`
-- **MIME types:** `.wasm` must be `application/wasm`. Most CDNs handle this; some require a config tweak
+Bundle composition (uncompressed; Brotli/gzip cuts ~3×):
 
-### JS production bundle
+| File | Size | Notes |
+|---|---|---|
+| `<hash>.wasm` (skiko) | ~8 MB | Compose Multiplatform's Skia port. Same for every Compose Wasm app |
+| `<hash>.wasm` (composeApp) | ~5–6 MB | Our app code |
+| `composeApp.js` | ~590 KB | Webpack entry point — non-hashed, short cache |
+| `composeApp.js.map` | ~1.5 MB | Source map; useful for debugging prod errors |
+| `composeResources/` | ~3.5 MB | 132 avatar PNGs + strings + fonts |
+| `index.html`, `styles.css`, `_headers`, `_redirects` | small | Branded boot screen + CDN config |
+
+Total uncompressed: ~20 MB. Brotli'd-on-the-wire: ~5–7 MB.
+
+### Cloudflare Pages — dashboard setup
+
+Recommended deploy path. Pages auto-builds on every push to the configured branch.
+
+| Field | Value |
+|---|---|
+| Production branch | `main` |
+| Build command | `bash scripts/build_web.sh` |
+| Build output directory | `composeApp/build/dist/wasmJs/productionExecutable` |
+| Root directory | (leave empty — repo root) |
+| Environment variables | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `JAVA_VERSION=21` |
+
+**Env vars** — both Supabase values are public keys (RLS gates the data), so they're safe to bake in. The `JAVA_VERSION=21` is a Cloudflare Pages convention that triggers their build image to provision the requested JDK; without it the build picks the default Java 17 which Gradle 8.14 + Kotlin 2.3.20 don't fully support.
+
+**Headers and redirects** — `composeApp/src/webMain/resources/_headers` and `_redirects` are copied into the output dir on every build:
+
+- `_headers` sets `Cache-Control: public, max-age=31536000, immutable` on every content-hashed `.wasm` / chunk / `.map`, `must-revalidate` on the non-hashed entry points (`composeApp.js`, `index.html`). Cloudflare picks them up automatically per [their headers docs](https://developers.cloudflare.com/pages/configuration/headers/).
+- `_redirects` has a single SPA fallback (`/* /index.html 200`) so any unknown path lands on the in-app router. The status `200` (not `301`) keeps the URL untouched so future deep-link handling can still read `window.location` from Kotlin.
+
+**MIME types** — Cloudflare serves `.wasm` as `application/wasm` automatically. No tweak needed.
+
+**Compression** — Cloudflare auto-applies Brotli to compressible MIME types; `.wasm` and `.js` both qualify.
+
+**Base href** — only relevant if you ever host under a subpath (e.g., `https://example.com/app/`). Edit `webMain/resources/index.html` and add `<base href="/app/">` inside `<head>`.
+
+### Cloudflare Pages — manual deploy via wrangler
+
+Useful for one-off deploys or CI providers where you can't connect Pages to a repo.
+
+```bash
+npm i -g wrangler
+bash scripts/build_web.sh
+wrangler pages deploy composeApp/build/dist/wasmJs/productionExecutable \
+    --project-name=ptt-dynamics \
+    --branch=main
+```
+
+Wrangler reads `CLOUDFLARE_ACCOUNT_ID` + `CLOUDFLARE_API_TOKEN` from env or `~/.wrangler` for auth.
+
+### Other hosts
+
+The bundle is plain static files — works as-is on any host. Notes:
+
+| Host | Notes |
+|---|---|
+| Netlify | `_headers` and `_redirects` use the same Netlify-compatible format. No changes needed |
+| Vercel | Use `vercel.json` instead — Vercel ignores `_headers` / `_redirects`. Convert the cache rules into `headers` and the SPA fallback into a `rewrites` entry |
+| GitHub Pages | No support for cache headers — just upload the dir, GitHub serves with default headers |
+| S3 + CloudFront | Set the Wasm MIME type explicitly via S3 `Content-Type` metadata; configure CloudFront cache behaviors mirroring the rules in `_headers` |
+| Plain nginx | Add `application/wasm` to `mime.types` if missing; serve with `expires 1y` for hashed assets and `expires 0` for `index.html` |
+
+### JS production bundle (fallback only)
 
 ```bash
 ./gradlew :composeApp:jsBrowserDistribution
 # Output: composeApp/build/dist/js/productionExecutable/
 ```
 
-Same hosting story. Bundle is larger and slower than Wasm — use only as a fallback.
+JS bundle is larger and slower than Wasm at runtime — use only for browsers / WebViews without Wasm support (very rare in practice). The two targets share the entry point in `webMain/`, so both produce the same UI from the same Kotlin source.
 
 ### Versioning
 
@@ -235,7 +298,7 @@ A reasonable starter pipeline:
 | `desktop-mac` | macOS | `packageReleaseDistributionForCurrentOS`, sign + notarize |
 | `desktop-win` | Windows | `packageReleaseDistributionForCurrentOS`, sign |
 | `desktop-linux` | Linux | `packageReleaseDistributionForCurrentOS` |
-| `web-prod` | Linux | `wasmJsBrowserDistribution`, deploy to CDN |
+| `web-prod` | Linux | `bash scripts/build_web.sh`, then deploy via wrangler / your CDN of choice |
 
 Add CI configs once you pick a provider. Document which providers you settled on in [Technologies](TECHNOLOGIES.md).
 

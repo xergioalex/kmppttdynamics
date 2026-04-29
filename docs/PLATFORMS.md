@@ -225,9 +225,14 @@ fun main() {
 ```bash
 ./gradlew :composeApp:wasmJsBrowserDevelopmentRun     # http://localhost:8080
 ./gradlew :composeApp:wasmJsBrowserDistribution       # Production bundle
+bash scripts/build_web.sh                              # Production bundle + deploy hints
 ```
 
-Output: `composeApp/build/dist/wasmJs/productionExecutable/`. Deploy this directory as a static site (Cloudflare Pages, Netlify, Vercel, S3 + CloudFront, GitHub Pages with the right base href).
+Output: `composeApp/build/dist/wasmJs/productionExecutable/`. The bundle includes `_headers` and `_redirects` (Cloudflare Pages format) so cache rules and SPA fallback are set automatically. Deploy this directory as a static site — full walkthrough in [Build & Deploy → Web](BUILD_DEPLOY.md#web).
+
+### Branded boot screen
+
+`webMain/resources/index.html` includes a purple gradient + "P" mark + spinner that's visible during the ~2–3 s Wasm cold start. CSS is in `webMain/resources/styles.css` and matches the `theme-color` meta so installed PWA chrome stays consistent with the in-app M3 primary tone. When Compose mounts its `<canvas>` it covers the boot screen edge-to-edge — no JS needed to remove the placeholder.
 
 ### Capabilities
 
@@ -242,6 +247,7 @@ Output: `composeApp/build/dist/wasmJs/productionExecutable/`. Deploy this direct
 - File downloads / clipboard / window APIs go through `kotlinx-browser` shims
 - Set the `base href` correctly in `index.html` if hosting under a subpath
 - Wasm errors print stack traces with mangled names — keep source maps enabled in dev
+- The `_headers` / `_redirects` files in `webMain/resources/` use the Cloudflare Pages / Netlify format — Vercel ignores them and needs `vercel.json` instead. See [Build & Deploy → Other hosts](BUILD_DEPLOY.md#other-hosts)
 
 ---
 
